@@ -191,6 +191,39 @@ button:disabled {
   font-size: 0.86rem;
 }
 
+.result-panel {
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(255, 209, 102, 0.42);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(53, 42, 23, 0.72);
+}
+
+.result-panel[hidden] {
+  display: none;
+}
+
+.result-panel h2,
+.result-panel p {
+  margin: 0;
+}
+
+.result-panel h2 {
+  color: #ffd166;
+  font-size: 1rem;
+}
+
+.result-panel p {
+  color: #d9edf4;
+  font-size: 0.82rem;
+}
+
+.result-panel button {
+  width: 100%;
+  margin-top: 3px;
+}
+
 @media (orientation: landscape) and (min-width: 760px) {
   .game-shell {
     grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
