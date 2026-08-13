@@ -8,7 +8,9 @@
   },
   "scripts": {
     "build": "vite build",
-    "check": "npm run typecheck && npm run test && npm run test:dist",
+    "build:app": "vite build --config vite.app.config.ts",
+    "check": "npm run typecheck && npm run test && npm run test:dist && npm run test:app",
+    "test:app": "npm run build:app && node tests/dist/app-smoke.mjs",
     "test": "vitest run",
     "test:dist": "npm run build && node tests/dist/smoke.mjs",
     "test:watch": "vitest",

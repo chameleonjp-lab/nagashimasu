@@ -1,0 +1,202 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #071521;
+  color: #eef8ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  background:
+    radial-gradient(circle at 50% -20%, rgba(36, 117, 143, 0.32), transparent 55%),
+    #071521;
+}
+
+button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid rgba(180, 235, 255, 0.28);
+  border-radius: 12px;
+  padding: 8px 12px;
+  color: inherit;
+  background: rgba(16, 43, 58, 0.94);
+  font: inherit;
+  font-weight: 700;
+  touch-action: manipulation;
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:focus-visible {
+  outline: 3px solid #ffd166;
+  outline-offset: 2px;
+}
+
+button[aria-pressed="true"] {
+  border-color: #ffd166;
+  background: rgba(101, 74, 23, 0.9);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+#app {
+  width: 100%;
+  min-height: 100svh;
+  padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+}
+
+.game-shell {
+  display: grid;
+  grid-template-rows: auto minmax(280px, 1fr) auto;
+  width: min(100%, 1080px);
+  height: calc(100svh - max(16px, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+  min-height: 0;
+  margin: 0 auto;
+  gap: 8px;
+}
+
+.game-header,
+.game-controls,
+.game-message {
+  border: 1px solid rgba(180, 235, 255, 0.14);
+  border-radius: 16px;
+  background: rgba(8, 29, 42, 0.86);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+}
+
+.game-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.game-title,
+.game-objective,
+.forecast-line,
+.game-status {
+  margin: 0;
+}
+
+.game-title {
+  font-size: clamp(1.1rem, 2.4vw, 1.45rem);
+}
+
+.game-objective {
+  margin-top: 3px;
+  color: #c6eaf6;
+  font-size: 0.9rem;
+}
+
+.game-turn {
+  align-self: center;
+  color: #ffd166;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.game-stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(180, 235, 255, 0.16);
+  border-radius: 18px;
+  background: #071521;
+}
+
+.game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
+}
+
+.game-controls {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+}
+
+.candidate-row,
+.action-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.action-row {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.candidate-card {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+}
+
+.candidate-card strong,
+.candidate-card small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidate-card small {
+  color: #b8d9e5;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.game-message {
+  min-height: 44px;
+  padding: 9px 12px;
+  color: #c6eaf6;
+  font-size: 0.86rem;
+}
+
+@media (orientation: landscape) and (min-width: 760px) {
+  .game-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .game-header,
+  .game-stage,
+  .game-message {
+    grid-column: 1;
+  }
+
+  .game-controls {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    align-content: end;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button:active:not(:disabled) {
+    transform: none;
+  }
+}

@@ -2,6 +2,10 @@
 
 更新日: 2026-08-13
 
+## M3表示・入力実装
+
+`src/presentation`、`src/application`、`src/main.ts`、`src/styles.css`は、本プロジェクトの計画書とADR 0003をもとに新規作成した。Canvas描画、アイソメトリック座標、Pointer Eventsの入力管理に外部コードやゲーム作品のアセットは使用していない。画面表示はM2の`StageSession.preview`と`StageSession.execute`を呼び出し、表示側で水流計算を再実装しない。
+
 ## M1・M2実装
 
 `src/domain`のM1水流モデルとM2ステージ進行は、本リポジトリの`docs/PROJECT_PLAN.md`、`docs/adr/0001-deterministic-water-model.md`、`docs/adr/0002-stage-progression.md`を仕様として新規に実装した。M2のステージ1～3、候補列、雨列、評価値も本プロジェクト用に新規作成した。
