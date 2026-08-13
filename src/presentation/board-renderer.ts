@@ -13,6 +13,8 @@ import type { IsometricCellGeometry, IsometricLayout, IsometricPoint } from './i
 export interface BoardRenderOptions {
   readonly selectedCell?: number | null;
   readonly preview?: StageTurnPreview | null;
+  readonly activePlacementCells?: readonly number[];
+  readonly flowResult?: FlowStepResult | null;
   readonly rainCells?: readonly RainEvent[];
   readonly forecastCells?: readonly ForecastCellView[];
   readonly riskCells?: readonly StageCellRiskView[];
@@ -277,12 +279,19 @@ export function renderIsometricBoard(
   }
 
   const preview = options.preview;
+  const activePlacementCells = options.activePlacementCells ?? [];
+  for (const index of activePlacementCells) {
+    const geometry = getCellGeometry(layout, renderSnapshot, index);
+    fillPolygon(context, geometry.top, 'rgba(255, 208, 92, 0.24)', '#ffd166', 2);
+  }
+
+  const activeFlow = options.flowResult ?? null;
   if (preview !== undefined && preview !== null && preview.valid) {
     for (const index of preview.placementCells) {
       const geometry = getCellGeometry(layout, renderSnapshot, index);
       fillPolygon(context, geometry.top, 'rgba(255, 208, 92, 0.28)', '#ffd166', 2);
     }
-    drawFlowPreview(context, layout, snapshot, preview.nextFlow);
+    if (activeFlow === null) drawFlowPreview(context, layout, snapshot, preview.nextFlow);
     for (const rain of preview.rainCells) {
       const geometry = getCellGeometry(layout, snapshot, rain.index);
       context.beginPath();
@@ -291,6 +300,8 @@ export function renderIsometricBoard(
       context.fill();
     }
   }
+
+  if (activeFlow !== null) drawFlowPreview(context, layout, snapshot, activeFlow);
 
   for (const rain of options.rainCells ?? []) {
     const geometry = getCellGeometry(layout, snapshot, rain.index);
