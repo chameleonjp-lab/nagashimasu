@@ -6,7 +6,7 @@
 
 `src/presentation`、`src/application`、`src/main.ts`、`src/styles.css`は、本プロジェクトの計画書とADR 0003をもとに新規作成した。Canvas描画、アイソメトリック座標、Pointer Eventsの入力管理、予報・危険度の表示に外部コードやゲーム作品のアセットは使用していない。画面表示はM2の`StageSession.preview`と`StageSession.execute`、snapshotの証拠を使い、表示側で水流計算を再実装しない。
 
-確定後のtrace再生、再生中の入力ロック、クリア／失敗結果パネルも本プロジェクトの独自実装である。再生の時間処理はPresentation層だけが扱い、`StageSession`の状態、判定、評価値を変更しない。
+確定後のtrace再生、再生中の入力ロック、クリア／失敗結果パネル、タイトル画面、遊び方、ステージ選択も本プロジェクトの独自実装である。再生の時間処理とステージ入口の選択状態はPresentation層だけが扱い、`StageSession`の状態、判定、評価値を変更しない。
 
 ## M1・M2実装
 

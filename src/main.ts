@@ -4,7 +4,8 @@ import { StageController } from './application/stage-controller';
 import type { CandidateSlot } from './domain/stage-replay';
 import { getStageObjectiveProgress } from './domain/stage-session';
 import type { StageExecution, StageTracePhase } from './domain/stage-session';
-import { getBuiltInStage } from './domain/stages';
+import { BUILT_IN_STAGES, getBuiltInStage } from './domain/stages';
+import type { ValidatedStageDefinition } from './domain/stage-definition';
 import { createIsometricLayout, hitTestCell } from './presentation/isometric';
 import { PointerController } from './presentation/pointer-controller';
 import { renderIsometricBoard } from './presentation/board-renderer';
@@ -19,14 +20,56 @@ const appRoot = root;
 
 const stage = getBuiltInStage('stage-01-first-pond');
 if (stage === undefined) throw new Error('built-in stage-01-first-pond is missing');
-const currentStage = stage;
+let currentStage = stage;
+
+function stageObjectiveText(definition: ValidatedStageDefinition): string {
+  switch (definition.objective.type) {
+    case 'stored-water': return `水を${definition.objective.target}ためる`;
+    case 'safe-drain': return `安全排水を${definition.objective.target}つくる`;
+    case 'protect': return `保護対象を${definition.objective.target}回守る`;
+  }
+}
+
+function stageNumber(definition: ValidatedStageDefinition): number {
+  const match = /^stage-(\d+)/u.exec(definition.id);
+  return Number(match?.[1] ?? 0);
+}
+
+const stageOptionsMarkup = BUILT_IN_STAGES.map((definition) => `
+  <button class="stage-option" type="button" data-stage-id="${definition.id}" aria-pressed="${definition.id === currentStage.id}">
+    <span class="stage-option-number">ステージ${stageNumber(definition)}</span>
+    <strong>${definition.name}</strong>
+    <small>${stageObjectiveText(definition)}</small>
+  </button>
+`).join('');
 
 let controller = new StageController(currentStage);
 appRoot.innerHTML = `
-  <main class="game-shell" aria-label="ナガシマス">
+  <section class="start-panel" id="start-panel" aria-labelledby="start-title">
+    <div class="start-card">
+      <p class="eyebrow">水を読む、地形を組む、街を守る</p>
+      <h1 id="start-title">ナガシマス</h1>
+      <p class="start-lead">次の雨を見て、2つの施工候補から1つを選びます。盤面をタップして仮置きし、結果を確認してから確定します。</p>
+      <section class="tutorial-card" aria-labelledby="tutorial-title">
+        <h2 id="tutorial-title">遊び方</h2>
+        <ol>
+          <li><strong>候補を選ぶ</strong><span>上げる・下げる候補を比べます。</span></li>
+          <li><strong>仮置きして読む</strong><span>盤面をタップすると、雨と次の水流を予測します。</span></li>
+          <li><strong>確定する</strong><span>回転や取消を使い、納得してから施工確定を押します。</span></li>
+        </ol>
+      </section>
+      <section class="stage-picker" aria-labelledby="stage-picker-title">
+        <h2 id="stage-picker-title">ステージを選ぶ</h2>
+        <div class="stage-list">${stageOptionsMarkup}</div>
+        <p class="stage-summary" id="stage-summary"></p>
+        <button class="start-button" id="start-game" type="button">このステージを始める</button>
+      </section>
+    </div>
+  </section>
+  <main class="game-shell" id="game-shell" aria-label="ナガシマス" hidden>
     <header class="game-header">
       <div>
-        <h1 class="game-title">ナガシマス — はじめの池</h1>
+        <h1 class="game-title" id="game-title"></h1>
         <p class="game-objective" id="objective"></p>
         <p class="forecast-line" id="forecast"></p>
         <p class="game-risk" id="risk"></p>
@@ -55,6 +98,7 @@ appRoot.innerHTML = `
         <p id="result-score"></p>
         <p id="result-reasons"></p>
         <button id="retry" type="button">もう一度</button>
+        <button id="stage-menu" type="button">ステージ選択へ</button>
       </section>
     </section>
   </main>
@@ -71,6 +115,15 @@ const context = canvas.getContext('2d');
 if (context === null) throw new Error('2D canvas context is unavailable');
 const canvasContext = context;
 const stageElement = required<HTMLElement>('.game-stage');
+const startPanel = required<HTMLElement>('#start-panel');
+const gameShell = required<HTMLElement>('#game-shell');
+const gameTitleElement = required<HTMLElement>('#game-title');
+const stageSummaryElement = required<HTMLElement>('#stage-summary');
+const startGameButton = required<HTMLButtonElement>('#start-game');
+const stageMenuButton = required<HTMLButtonElement>('#stage-menu');
+const stageOptionButtons = Array.from(
+  appRoot.querySelectorAll<HTMLButtonElement>('.stage-option')
+);
 const objectiveElement = required<HTMLElement>('#objective');
 const forecastElement = required<HTMLElement>('#forecast');
 const riskElement = required<HTMLElement>('#risk');
@@ -95,6 +148,37 @@ const retryButton = required<HTMLButtonElement>('#retry');
 let layout: IsometricLayout | null = null;
 let lastMessage = '盤面をタップして仮置きし、内容を確認してから施工確定を押してください。';
 let playback: TracePlayback | null = null;
+let selectedStageId = currentStage.id;
+
+function updateStagePicker(): void {
+  const selected = getBuiltInStage(selectedStageId);
+  if (selected === undefined) return;
+  for (const button of stageOptionButtons) {
+    button.setAttribute('aria-pressed', String(button.dataset['stageId'] === selected.id));
+  }
+  stageSummaryElement.textContent = `${selected.name}: ${stageObjectiveText(selected)}。${selected.timerSeconds === null ? '時間制限なし。' : '時間制限は次の更新で追加します。'}`;
+}
+
+function startSelectedStage(): void {
+  const selected = getBuiltInStage(selectedStageId);
+  if (selected === undefined) return;
+  playback?.cancel();
+  playback = null;
+  currentStage = selected;
+  controller = new StageController(currentStage);
+  lastMessage = '盤面をタップして仮置きし、内容を確認してから施工確定を押してください。';
+  startPanel.hidden = true;
+  gameShell.hidden = false;
+  resizeCanvas();
+}
+
+function showStagePicker(): void {
+  if (playback !== null) return;
+  controller.cancelPlacement();
+  gameShell.hidden = true;
+  startPanel.hidden = false;
+  updateStagePicker();
+}
 
 function phaseLabel(phase: StageTracePhase, flowStep: number | null): string {
   switch (phase) {
@@ -202,6 +286,7 @@ function render(): void {
   });
 
   const progress = getStageObjectiveProgress(currentStage, view.snapshot.board, view.snapshot.metrics);
+  gameTitleElement.textContent = `ナガシマス — ${currentStage.name}`;
   const phaseText = playbackFrame?.phase === null || playbackFrame?.phase === undefined
     ? terminalPhaseLabel(view.snapshot.phase)
     : phaseLabel(playbackFrame.phase, playbackFrame.event?.flowStep ?? null);
@@ -258,6 +343,7 @@ function render(): void {
       : view.snapshot.failureReasons.map(failureReasonText).join('／');
   }
   retryButton.disabled = locked;
+  stageMenuButton.disabled = locked;
 }
 
 const pointerController = new PointerController(canvas, {
@@ -333,6 +419,18 @@ retryButton.addEventListener('click', () => {
   render();
 });
 
+stageOptionButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    const stageId = button.dataset['stageId'];
+    if (stageId === undefined || getBuiltInStage(stageId) === undefined) return;
+    selectedStageId = stageId;
+    updateStagePicker();
+  });
+});
+
+startGameButton.addEventListener('click', startSelectedStage);
+stageMenuButton.addEventListener('click', showStagePicker);
+
 window.addEventListener('resize', resizeCanvas, { passive: true });
 window.addEventListener('orientationchange', resizeCanvas, { passive: true });
 if ('ResizeObserver' in window) {
@@ -340,3 +438,4 @@ if ('ResizeObserver' in window) {
 }
 
 resizeCanvas();
+updateStagePicker();
