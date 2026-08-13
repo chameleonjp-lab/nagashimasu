@@ -7,6 +7,7 @@ import { getBuiltInStage } from './domain/stages';
 import { createIsometricLayout, hitTestCell } from './presentation/isometric';
 import { PointerController } from './presentation/pointer-controller';
 import { renderIsometricBoard } from './presentation/board-renderer';
+import { buildStageProjection, riskLabel } from './presentation/stage-projection';
 import type { IsometricLayout } from './presentation/isometric';
 
 const root = document.querySelector<HTMLDivElement>('#app');
@@ -25,6 +26,7 @@ appRoot.innerHTML = `
         <h1 class="game-title">ナガシマス — はじめの池</h1>
         <p class="game-objective" id="objective"></p>
         <p class="forecast-line" id="forecast"></p>
+        <p class="game-risk" id="risk"></p>
       </div>
       <p class="game-turn" id="turn"></p>
     </header>
@@ -61,6 +63,7 @@ const canvasContext = context;
 const stageElement = required<HTMLElement>('.game-stage');
 const objectiveElement = required<HTMLElement>('#objective');
 const forecastElement = required<HTMLElement>('#forecast');
+const riskElement = required<HTMLElement>('#risk');
 const turnElement = required<HTMLElement>('#turn');
 const messageElement = required<HTMLElement>('#message');
 const candidateButtons = [
@@ -124,18 +127,36 @@ function render(): void {
   const currentLayout = layout;
   if (currentLayout === null) return;
   const view = controller.view;
+  const projection = buildStageProjection(
+    currentStage,
+    view.snapshot,
+    view.forecasts,
+    view.preview
+  );
   renderIsometricBoard(canvasContext, view.snapshot.board, currentLayout, {
     selectedCell: view.pending?.anchorIndex ?? null,
-    preview: view.preview
+    preview: view.preview,
+    forecastCells: projection.forecastCells,
+    riskCells: projection.risks
   });
 
   const progress = getStageObjectiveProgress(currentStage, view.snapshot.board, view.snapshot.metrics);
   objectiveElement.textContent = `目的: ${progress.value} / ${progress.target}（${view.snapshot.phase === 'awaiting-turn' ? '継続中' : view.snapshot.phase}）`;
   const forecastText = view.forecasts.length === 0
     ? '雨予報: なし'
-    : `雨予報: ${view.forecasts.map((forecast) => `あと${forecast.turnsUntil}手・${forecast.cells.map((cell) => `セル${cell.index + 1}`).join('／')}`).join('、')}`;
+    : `雨予報: ${projection.forecasts.map((forecast) => `あと${forecast.turnsUntil}手・${forecast.totalAmount}・${forecast.cells.map((cell) => `セル${cell.index + 1}`).join('／')}`).join('、')}`;
   forecastElement.textContent = forecastText;
   turnElement.textContent = `手数 ${view.snapshot.completedTurns} / ${currentStage.maxTurns}`;
+
+  const selectedRisk = view.pending === null
+    ? null
+    : projection.risks[view.pending.anchorIndex] ?? null;
+  if (selectedRisk === null) {
+    riskElement.textContent = '危険度: セルを選ぶと、雨と水流の理由を表示します。';
+  } else {
+    const reasons = selectedRisk.reasons.length > 0 ? selectedRisk.reasons.join('／') : '今の予測では大きな危険はありません';
+    riskElement.textContent = `セル${selectedRisk.index + 1} 危険度: ${riskLabel(selectedRisk.level)} — ${reasons}`;
+  }
 
   for (const card of view.candidates) {
     const button = candidateButtons[card.slot];
