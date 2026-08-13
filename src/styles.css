@@ -92,6 +92,7 @@ button:disabled {
 .game-title,
 .game-objective,
 .forecast-line,
+.game-risk,
 .game-status {
   margin: 0;
 }
@@ -104,6 +105,20 @@ button:disabled {
   margin-top: 3px;
   color: #c6eaf6;
   font-size: 0.9rem;
+}
+
+.forecast-line,
+.game-risk {
+  margin-top: 3px;
+  overflow: hidden;
+  color: #b8d9e5;
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-risk {
+  color: #ffdca0;
 }
 
 .game-turn {

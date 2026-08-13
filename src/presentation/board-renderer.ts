@@ -1,6 +1,7 @@
 import { CellFlag, Direction, CELL_COUNT } from '../domain/constants';
 import type { BoardSnapshot, FlowStepResult, RainEvent } from '../domain/types';
 import type { StageTurnPreview } from '../domain/stage-session';
+import type { ForecastCellView, StageCellRiskView } from './stage-projection';
 import {
   getCellGeometry,
   insetDiamond,
@@ -13,6 +14,8 @@ export interface BoardRenderOptions {
   readonly selectedCell?: number | null;
   readonly preview?: StageTurnPreview | null;
   readonly rainCells?: readonly RainEvent[];
+  readonly forecastCells?: readonly ForecastCellView[];
+  readonly riskCells?: readonly StageCellRiskView[];
   readonly background?: string;
 }
 
@@ -159,6 +162,56 @@ function drawFlowPreview(
   }
 }
 
+function riskColor(level: StageCellRiskView['level']): string {
+  switch (level) {
+    case 'caution': return 'rgba(255, 209, 102, 0.22)';
+    case 'danger': return 'rgba(255, 145, 92, 0.28)';
+    case 'critical': return 'rgba(255, 92, 92, 0.34)';
+    case 'safe': return 'transparent';
+  }
+}
+
+function forecastColor(eventIndex: number): string {
+  return eventIndex % 2 === 0 ? '#c8f1ff' : '#b9a7ff';
+}
+
+function drawRiskOverlay(
+  context: CanvasRenderingContext2D,
+  layout: IsometricLayout,
+  snapshot: Pick<BoardSnapshot, 'terrain'>,
+  risks: readonly StageCellRiskView[]
+): void {
+  for (const risk of risks) {
+    if (risk.level === 'safe') continue;
+    const geometry = getCellGeometry(layout, snapshot, risk.index);
+    fillPolygon(context, geometry.top, riskColor(risk.level), 'rgba(255, 255, 255, 0.18)', 1.5);
+  }
+}
+
+function drawForecastOverlay(
+  context: CanvasRenderingContext2D,
+  layout: IsometricLayout,
+  snapshot: Pick<BoardSnapshot, 'terrain'>,
+  forecastCells: readonly ForecastCellView[]
+): void {
+  context.setLineDash([4, 3]);
+  for (const forecast of forecastCells) {
+    const geometry = getCellGeometry(layout, snapshot, forecast.index);
+    const radius = Math.max(5, layout.tileHeight * 0.22) + forecast.eventIndex * 3;
+    context.beginPath();
+    context.arc(geometry.center.x, geometry.center.y, radius, 0, Math.PI * 2);
+    context.strokeStyle = forecastColor(forecast.eventIndex);
+    context.lineWidth = 2;
+    context.stroke();
+    context.font = `${Math.max(9, Math.round(layout.tileHeight * 0.2))}px system-ui, sans-serif`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillStyle = forecastColor(forecast.eventIndex);
+    context.fillText(String(forecast.amount), geometry.center.x, geometry.center.y - radius - 4);
+  }
+  context.setLineDash([]);
+}
+
 /** Draws one deterministic board frame. It contains no game-rule calculations. */
 export function renderIsometricBoard(
   context: CanvasRenderingContext2D,
@@ -213,6 +266,9 @@ export function renderIsometricBoard(
     drawEdgeMarker(context, geometry, snapshot.dangerEdgeMask[index] ?? 0, Direction.South, '#ff6b6b');
     drawEdgeMarker(context, geometry, snapshot.dangerEdgeMask[index] ?? 0, Direction.West, '#ff6b6b');
   }
+
+  drawRiskOverlay(context, layout, renderSnapshot, options.riskCells ?? []);
+  drawForecastOverlay(context, layout, renderSnapshot, options.forecastCells ?? []);
 
   const selectedCell = options.selectedCell ?? null;
   if (selectedCell !== null && selectedCell >= 0 && selectedCell < CELL_COUNT) {
