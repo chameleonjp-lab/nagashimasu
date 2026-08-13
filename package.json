@@ -1,0 +1,23 @@
+{
+  "name": "nagashimasu",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "vite build",
+    "check": "npm run typecheck && npm run test && npm run test:dist",
+    "test": "vitest run",
+    "test:dist": "npm run build && node tests/dist/smoke.mjs",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.1",
+    "typescript": "7.0.2",
+    "vite": "8.2.1",
+    "vitest": "4.1.10"
+  }
+}
