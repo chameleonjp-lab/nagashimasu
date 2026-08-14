@@ -137,6 +137,23 @@ button:disabled {
   padding-left: 1.4rem;
 }
 
+.tutorial-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tutorial-heading h2 {
+  margin: 0;
+}
+
+.tutorial-toggle {
+  min-height: 40px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+}
+
 .tutorial-card li {
   padding-left: 3px;
   color: #eef8ff;

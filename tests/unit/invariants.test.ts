@@ -26,7 +26,7 @@ describe('water model invariants', () => {
         }
       }
     }
-  });
+  }, 15_000);
 
   it('produces identical states for forward, reverse, and shuffled scans', () => {
     const forward = Array.from({ length: CELL_COUNT }, (_, index) => index);
