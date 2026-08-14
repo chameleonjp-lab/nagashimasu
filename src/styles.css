@@ -465,6 +465,11 @@ button:disabled {
   font-size: 0.82rem;
 }
 
+.result-panel .result-hint {
+  color: #ffe4a3;
+  font-weight: 700;
+}
+
 .result-panel button {
   width: 100%;
   margin-top: 3px;
