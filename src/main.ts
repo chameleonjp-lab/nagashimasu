@@ -1,7 +1,8 @@
 import './styles.css';
 
 import { StageController } from './application/stage-controller';
-import type { CandidateSlot } from './domain/stage-replay';
+import { TurnTimer, formatRemainingSeconds, timerDurationMs } from './application/turn-timer';
+import type { CandidateSlot, StageTimerMode } from './domain/stage-replay';
 import { getStageObjectiveProgress } from './domain/stage-session';
 import type { StageExecution, StageTracePhase } from './domain/stage-session';
 import { BUILT_IN_STAGES, getBuiltInStage } from './domain/stages';
@@ -62,6 +63,13 @@ appRoot.innerHTML = `
         <h2 id="stage-picker-title">ステージを選ぶ</h2>
         <div class="stage-list">${stageOptionsMarkup}</div>
         <p class="stage-summary" id="stage-summary"></p>
+        <label class="timer-setting" for="timer-mode">思考時間
+          <select id="timer-mode">
+            <option value="standard">標準</option>
+            <option value="extended">長め</option>
+            <option value="unlimited">無制限</option>
+          </select>
+        </label>
         <button class="start-button" id="start-game" type="button">このステージを始める</button>
       </section>
     </div>
@@ -74,10 +82,21 @@ appRoot.innerHTML = `
         <p class="forecast-line" id="forecast"></p>
         <p class="game-risk" id="risk"></p>
       </div>
-      <p class="game-turn" id="turn"></p>
+      <div class="header-actions">
+        <div>
+          <p class="game-turn" id="turn"></p>
+          <p class="game-timer" id="timer"></p>
+        </div>
+        <button id="pause" type="button">一時停止</button>
+      </div>
     </header>
     <section class="game-stage" aria-label="治水盤面">
       <canvas class="game-canvas" id="board" aria-label="8×8の治水盤面"></canvas>
+      <section class="pause-panel" id="pause-panel" hidden aria-live="polite">
+        <h2>一時停止中</h2>
+        <p id="pause-message">再開すると、残り時間から続けます。</p>
+        <button id="resume" type="button">再開</button>
+      </section>
     </section>
     <section class="game-controls" aria-label="施工操作">
       <div class="candidate-row">
@@ -120,6 +139,7 @@ const gameShell = required<HTMLElement>('#game-shell');
 const gameTitleElement = required<HTMLElement>('#game-title');
 const stageSummaryElement = required<HTMLElement>('#stage-summary');
 const startGameButton = required<HTMLButtonElement>('#start-game');
+const timerModeSelect = required<HTMLSelectElement>('#timer-mode');
 const stageMenuButton = required<HTMLButtonElement>('#stage-menu');
 const stageOptionButtons = Array.from(
   appRoot.querySelectorAll<HTMLButtonElement>('.stage-option')
@@ -144,11 +164,20 @@ const resultSummary = required<HTMLElement>('#result-summary');
 const resultScore = required<HTMLElement>('#result-score');
 const resultReasons = required<HTMLElement>('#result-reasons');
 const retryButton = required<HTMLButtonElement>('#retry');
+const timerElement = required<HTMLElement>('#timer');
+const pauseButton = required<HTMLButtonElement>('#pause');
+const pausePanel = required<HTMLElement>('#pause-panel');
+const pauseMessage = required<HTMLElement>('#pause-message');
+const resumeButton = required<HTMLButtonElement>('#resume');
 
 let layout: IsometricLayout | null = null;
 let lastMessage = '盤面をタップして仮置きし、内容を確認してから施工確定を押してください。';
 let playback: TracePlayback | null = null;
 let selectedStageId = currentStage.id;
+let selectedTimerMode: StageTimerMode = 'standard';
+let paused = false;
+let pageHidden = document.hidden;
+let turnTimer: TurnTimer | null = null;
 
 function updateStagePicker(): void {
   const selected = getBuiltInStage(selectedStageId);
@@ -156,7 +185,91 @@ function updateStagePicker(): void {
   for (const button of stageOptionButtons) {
     button.setAttribute('aria-pressed', String(button.dataset['stageId'] === selected.id));
   }
-  stageSummaryElement.textContent = `${selected.name}: ${stageObjectiveText(selected)}。${selected.timerSeconds === null ? '時間制限なし。' : '時間制限は次の更新で追加します。'}`;
+  timerModeSelect.value = selectedTimerMode;
+  timerModeSelect.disabled = selected.timerSeconds === null;
+  const timerSummary = selected.timerSeconds === null
+    ? '時間制限なし。'
+    : (() => {
+      const extendedSeconds = Math.round(selected.timerSeconds * 1.5);
+      const selectedLabel = selectedTimerMode === 'extended'
+        ? `長め${extendedSeconds}秒`
+        : selectedTimerMode === 'unlimited'
+          ? '無制限'
+          : `標準${selected.timerSeconds}秒`;
+      return `標準${selected.timerSeconds}秒／長め${extendedSeconds}秒／無制限（現在: ${selectedLabel}）。`;
+    })();
+  stageSummaryElement.textContent = `${selected.name}: ${stageObjectiveText(selected)}。${timerSummary}`;
+}
+
+function thinkingDurationMs(): number | null {
+  return timerDurationMs(currentStage.timerSeconds, selectedTimerMode);
+}
+
+function stopTurnTimer(): void {
+  turnTimer?.stop();
+  turnTimer = null;
+}
+
+function handleTimeout(): void {
+  if (
+    paused ||
+    pageHidden ||
+    playback !== null ||
+    controller.view.snapshot.phase !== 'awaiting-turn'
+  ) return;
+  stopTurnTimer();
+  const execution = controller.timeout();
+  if (execution.accepted) {
+    lastMessage = '時間切れのため、施工を見送って水を進めます。';
+    startPlayback(execution);
+  } else {
+    lastMessage = reasonText(execution.reason);
+  }
+  render();
+}
+
+function startTurnTimer(): void {
+  stopTurnTimer();
+  const duration = thinkingDurationMs();
+  if (
+    duration === null ||
+    paused ||
+    pageHidden ||
+    playback !== null ||
+    controller.view.snapshot.phase !== 'awaiting-turn'
+  ) {
+    render();
+    return;
+  }
+  turnTimer = new TurnTimer({
+    onTick: () => render(),
+    onExpire: handleTimeout
+  });
+  turnTimer.start(duration);
+}
+
+function pauseGame(reason: 'manual' | 'background'): void {
+  if (
+    playback !== null ||
+    controller.view.snapshot.phase !== 'awaiting-turn' ||
+    paused
+  ) return;
+  paused = true;
+  turnTimer?.pause();
+  pauseMessage.textContent = reason === 'background'
+    ? '画面を離れたため停止しました。再開すると残り時間から続けます。'
+    : '再開すると、残り時間から続けます。';
+  pausePanel.hidden = false;
+  render();
+}
+
+function resumeGame(): void {
+  if (!paused || pageHidden) return;
+  paused = false;
+  pausePanel.hidden = true;
+  if (turnTimer?.paused) turnTimer.resume();
+  else startTurnTimer();
+  render();
 }
 
 function startSelectedStage(): void {
@@ -164,16 +277,23 @@ function startSelectedStage(): void {
   if (selected === undefined) return;
   playback?.cancel();
   playback = null;
+  stopTurnTimer();
+  paused = false;
+  pausePanel.hidden = true;
   currentStage = selected;
-  controller = new StageController(currentStage);
+  controller = new StageController(currentStage, selectedTimerMode);
   lastMessage = '盤面をタップして仮置きし、内容を確認してから施工確定を押してください。';
   startPanel.hidden = true;
   gameShell.hidden = false;
   resizeCanvas();
+  startTurnTimer();
 }
 
 function showStagePicker(): void {
   if (playback !== null) return;
+  stopTurnTimer();
+  paused = false;
+  pausePanel.hidden = true;
   controller.cancelPlacement();
   gameShell.hidden = true;
   startPanel.hidden = false;
@@ -208,11 +328,15 @@ function failureReasonText(reason: string): string {
 }
 
 function startPlayback(execution: StageExecution): void {
+  stopTurnTimer();
   playback?.cancel();
   playback = new TracePlayback(execution.trace, {
     onFrame: () => render(),
     onComplete: () => {
       playback = null;
+      if (!paused && !pageHidden && controller.view.snapshot.phase === 'awaiting-turn') {
+        startTurnTimer();
+      }
       render();
     }
   });
@@ -268,7 +392,7 @@ function render(): void {
   if (currentLayout === null) return;
   const view = controller.view;
   const playbackFrame: TracePlaybackFrame | null = playback?.frame ?? null;
-  const locked = playback !== null;
+  const locked = playback !== null || paused;
   const projection = buildStageProjection(
     currentStage,
     view.snapshot,
@@ -296,6 +420,23 @@ function render(): void {
     : `雨予報: ${projection.forecasts.map((forecast) => `あと${forecast.turnsUntil}手・${forecast.totalAmount}・${forecast.cells.map((cell) => `セル${cell.index + 1}`).join('／')}`).join('、')}`;
   forecastElement.textContent = forecastText;
   turnElement.textContent = `手数 ${view.snapshot.completedTurns} / ${currentStage.maxTurns}`;
+  const duration = thinkingDurationMs();
+  const remaining = turnTimer?.remainingMs ?? null;
+  const terminal = view.snapshot.phase !== 'awaiting-turn';
+  const timerText = playback !== null
+    ? '演出中'
+    : paused
+      ? '一時停止中'
+      : terminal
+        ? '終了'
+        : duration === null
+          ? '時間制限なし'
+          : `残り ${formatRemainingSeconds(remaining ?? duration)}`;
+  timerElement.textContent = timerText;
+  timerElement.classList.toggle(
+    'timer-warning',
+    !paused && playback === null && remaining !== null && remaining <= 3_000
+  );
 
   const selectedRisk = view.pending === null
     ? null
@@ -329,7 +470,6 @@ function render(): void {
     ? validationMessage || lastMessage
     : phaseLabel(playbackFrame.phase ?? 'evaluation', playbackFrame.event?.flowStep ?? null);
 
-  const terminal = view.snapshot.phase !== 'awaiting-turn';
   resultPanel.hidden = locked || !terminal;
   if (terminal) {
     resultTitle.textContent = view.snapshot.phase === 'cleared' ? 'クリア' : '失敗';
@@ -343,7 +483,11 @@ function render(): void {
       : view.snapshot.failureReasons.map(failureReasonText).join('／');
   }
   retryButton.disabled = locked;
-  stageMenuButton.disabled = locked;
+  stageMenuButton.disabled = playback !== null;
+  pauseButton.disabled = playback !== null || view.snapshot.phase !== 'awaiting-turn';
+  pauseButton.textContent = paused ? '再開' : '一時停止';
+  pausePanel.hidden = !paused;
+  resumeButton.disabled = pageHidden;
 }
 
 const pointerController = new PointerController(canvas, {
@@ -351,7 +495,7 @@ const pointerController = new PointerController(canvas, {
   onMove: (data) => selectCellAt(data.clientX, data.clientY),
   onEnd: () => render(),
   onCancel: () => {
-    if (playback !== null) return;
+    if (playback !== null || paused) return;
     controller.cancelPlacement();
     lastMessage = '入力が取り消されたため、仮置きを解除しました。';
     render();
@@ -361,7 +505,7 @@ pointerController.attach();
 
 candidateButtons.forEach((button, slot) => {
   button.addEventListener('click', () => {
-    if (playback !== null) return;
+    if (playback !== null || paused) return;
     controller.selectCandidate(slot as CandidateSlot);
     lastMessage = `${slot === 0 ? '候補A' : '候補B'}を選択しました。`;
     render();
@@ -369,21 +513,21 @@ candidateButtons.forEach((button, slot) => {
 });
 
 rotateButton.addEventListener('click', () => {
-  if (playback !== null) return;
+  if (playback !== null || paused) return;
   controller.rotate();
   lastMessage = '仮置きの向きを回転しました。';
   render();
 });
 
 cancelButton.addEventListener('click', () => {
-  if (playback !== null) return;
+  if (playback !== null || paused) return;
   controller.cancelPlacement();
   lastMessage = '仮置きを取り消しました。';
   render();
 });
 
 confirmButton.addEventListener('click', () => {
-  if (playback !== null) return;
+  if (playback !== null || paused) return;
   const execution = controller.confirm();
   if (execution === null) {
     lastMessage = '先に盤面へ候補を仮置きしてください。';
@@ -397,7 +541,7 @@ confirmButton.addEventListener('click', () => {
 });
 
 skipButton.addEventListener('click', () => {
-  if (playback !== null) return;
+  if (playback !== null || paused) return;
   const execution = controller.skip();
   lastMessage = execution.accepted ? '施工を見送りました。' : reasonText(execution.reason);
   if (execution.accepted) startPlayback(execution);
@@ -405,7 +549,7 @@ skipButton.addEventListener('click', () => {
 });
 
 undoButton.addEventListener('click', () => {
-  if (playback !== null) return;
+  if (playback !== null || paused) return;
   const execution = controller.undo();
   lastMessage = execution.accepted ? '直前の手を取り消しました。' : reasonText(execution.reason);
   if (execution.accepted) startPlayback(execution);
@@ -413,9 +557,13 @@ undoButton.addEventListener('click', () => {
 });
 
 retryButton.addEventListener('click', () => {
-  if (playback !== null) return;
-  controller = new StageController(currentStage);
+  if (playback !== null || paused) return;
+  stopTurnTimer();
+  paused = false;
+  pausePanel.hidden = true;
+  controller = new StageController(currentStage, selectedTimerMode);
   lastMessage = '最初から再挑戦します。';
+  startTurnTimer();
   render();
 });
 
@@ -431,11 +579,38 @@ stageOptionButtons.forEach((button) => {
 startGameButton.addEventListener('click', startSelectedStage);
 stageMenuButton.addEventListener('click', showStagePicker);
 
+timerModeSelect.addEventListener('change', () => {
+  const value = timerModeSelect.value;
+  if (value !== 'standard' && value !== 'extended' && value !== 'unlimited') return;
+  selectedTimerMode = value;
+  updateStagePicker();
+});
+
+pauseButton.addEventListener('click', () => {
+  if (paused) resumeGame();
+  else pauseGame('manual');
+});
+
+resumeButton.addEventListener('click', resumeGame);
+
+document.addEventListener('visibilitychange', () => {
+  pageHidden = document.hidden;
+  if (pageHidden) {
+    pauseGame('background');
+    return;
+  }
+  if (paused) {
+    pauseMessage.textContent = '一時停止中です。再開ボタンを押すと続きます。';
+    resumeButton.disabled = false;
+    render();
+  }
+});
+
 window.addEventListener('resize', resizeCanvas, { passive: true });
 window.addEventListener('orientationchange', resizeCanvas, { passive: true });
 if ('ResizeObserver' in window) {
   new ResizeObserver(resizeCanvas).observe(stageElement);
 }
 
-resizeCanvas();
+if (!gameShell.hidden) resizeCanvas();
 updateStagePicker();

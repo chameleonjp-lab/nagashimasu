@@ -196,6 +196,31 @@ button:disabled {
   margin: 0;
 }
 
+.timer-setting {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  color: #c6eaf6;
+  font-size: 0.84rem;
+}
+
+.timer-setting select {
+  min-height: 44px;
+  border: 1px solid rgba(180, 235, 255, 0.28);
+  border-radius: 10px;
+  padding: 6px 10px;
+  color: inherit;
+  background: rgba(16, 43, 58, 0.94);
+  font: inherit;
+  font-weight: 700;
+}
+
+.timer-setting select:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .start-button {
   width: 100%;
   border-color: #ffd166;
@@ -261,12 +286,38 @@ button:disabled {
 }
 
 .game-turn {
-  align-self: center;
   color: #ffd166;
   font-size: 0.9rem;
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
+}
+
+.header-actions {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-actions > div {
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+}
+
+.game-timer {
+  margin: 0;
+  color: #b8d9e5;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.game-timer.timer-warning {
+  color: #ff8f70;
+  font-weight: 800;
 }
 
 .game-stage {
@@ -276,6 +327,38 @@ button:disabled {
   border: 1px solid rgba(180, 235, 255, 0.16);
   border-radius: 18px;
   background: #071521;
+}
+
+.pause-panel {
+  position: absolute;
+  inset: 12px;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 209, 102, 0.46);
+  border-radius: 18px;
+  padding: 20px;
+  background: rgba(7, 21, 33, 0.9);
+  text-align: center;
+}
+
+.pause-panel[hidden] {
+  display: none;
+}
+
+.pause-panel h2,
+.pause-panel p {
+  margin: 0;
+}
+
+.pause-panel h2 {
+  color: #ffd166;
+}
+
+.pause-panel p {
+  color: #c6eaf6;
+  font-size: 0.86rem;
 }
 
 .game-canvas {
