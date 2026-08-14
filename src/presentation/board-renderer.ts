@@ -9,7 +9,7 @@ import {
   sortCellIndicesForDrawing
 } from './isometric';
 import type { IsometricCellGeometry, IsometricLayout, IsometricPoint } from './isometric';
-import { clampPlaybackProgress, playbackPulse } from './playback-visuals';
+import { clampPlaybackProgress, playbackPulseForMotion } from './playback-visuals';
 
 export interface BoardRenderOptions {
   readonly selectedCell?: number | null;
@@ -20,6 +20,7 @@ export interface BoardRenderOptions {
   readonly forecastCells?: readonly ForecastCellView[];
   readonly riskCells?: readonly StageCellRiskView[];
   readonly playbackProgress?: number | null;
+  readonly reducedMotion?: boolean;
   readonly background?: string;
 }
 
@@ -282,7 +283,7 @@ export function renderIsometricBoard(
 
   const preview = options.preview;
   const playbackProgress = clampPlaybackProgress(options.playbackProgress);
-  const playbackPulseValue = playbackPulse(playbackProgress);
+  const playbackPulseValue = playbackPulseForMotion(playbackProgress, options.reducedMotion ?? false);
   const activePlacementCells = options.activePlacementCells ?? [];
   for (const index of activePlacementCells) {
     const geometry = getCellGeometry(layout, renderSnapshot, index);
