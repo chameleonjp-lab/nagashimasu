@@ -21,6 +21,7 @@
 - 確定後の施工・雨・水流・評価を短く再生する表示と、再生中の入力ロック
 - クリア／失敗の結果、スコア、失敗理由、即時再挑戦の表示
 - 結果画面の最初の破綻、主原因の一文、次に改善する1点の表示
+- ステージ1・2のクリア記録に連動したステージ2・3の解放表示
 - タイトル画面、3ステップの遊び方、ステージ1～3の選択
 - 初回表示と再表示に対応した折りたたみ式の遊び方
 - 視差効果を減らす設定に対応した固定表示の再生演出
@@ -29,7 +30,7 @@
 - 設定、チュートリアル既読、最後に選んだステージ、クリア最高記録のlocalStorage保存（v1から自動移行）
 - 確定後の施工・雨・水流を短い脈動で追える基本演出
 
-現在はM3の画面基礎に加え、M4のタイトルから結果までの縦切り、ステージ3の思考時間、一時停止・復帰、設定とクリア記録の保存、確定後の基本演出、水流再生速度の選択、結果画面の改善フィードバックを実装しています。盤面途中の保存、端末上の受入確認、完成版の操作調整、ステージ4～6、GitHub Pages公開は後続工程で扱います。Pagesの設定と公開は、完成後の明示承認まで行いません。
+現在はM3の画面基礎に加え、M4のタイトルから結果までの縦切り、ステージ3の思考時間、一時停止・復帰、設定とクリア記録の保存、確定後の基本演出、水流再生速度の選択、結果画面の改善フィードバック、ステージ解放表示を実装しています。盤面途中の保存、端末上の受入確認、完成版の操作調整、ステージ4～6、GitHub Pages公開は後続工程で扱います。Pagesの設定と公開は、完成後の明示承認まで行いません。
 
 ## 開発用コマンド
 
@@ -42,4 +43,4 @@ npm run check
 
 `npm run check`は型検査、単体テスト、ドメイン用ビルド、画面用ビルドの検査を順に実行します。画面は`npm run build:app`でも個別にビルドできます。
 
-詳しい仕様と工程は[企画・技術・実装計画書](docs/PROJECT_PLAN.md)、[M1水流モデル契約](docs/adr/0001-deterministic-water-model.md)、[M2ステージ進行契約](docs/adr/0002-stage-progression.md)、[M3表示・入力契約](docs/adr/0003-presentation-input.md)、[M4ステージ入口契約](docs/adr/0004-stage-entry.md)、[M4タイマー・一時停止契約](docs/adr/0005-timer-pause.md)、[M4進捗保存契約](docs/adr/0006-progress-storage.md)、[M4基本演出契約](docs/adr/0007-playback-feedback.md)、[M4再生速度契約](docs/adr/0008-playback-speed.md)、[M4結果フィードバック契約](docs/adr/0009-result-feedback.md)に記録しています。
+詳しい仕様と工程は[企画・技術・実装計画書](docs/PROJECT_PLAN.md)、[M1水流モデル契約](docs/adr/0001-deterministic-water-model.md)、[M2ステージ進行契約](docs/adr/0002-stage-progression.md)、[M3表示・入力契約](docs/adr/0003-presentation-input.md)、[M4ステージ入口契約](docs/adr/0004-stage-entry.md)、[M4タイマー・一時停止契約](docs/adr/0005-timer-pause.md)、[M4進捗保存契約](docs/adr/0006-progress-storage.md)、[M4基本演出契約](docs/adr/0007-playback-feedback.md)、[M4再生速度契約](docs/adr/0008-playback-speed.md)、[M4結果フィードバック契約](docs/adr/0009-result-feedback.md)、[M4ステージ解放契約](docs/adr/0010-stage-access.md)に記録しています。
