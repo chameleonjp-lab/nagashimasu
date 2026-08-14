@@ -9,6 +9,7 @@ import {
   sortCellIndicesForDrawing
 } from './isometric';
 import type { IsometricCellGeometry, IsometricLayout, IsometricPoint } from './isometric';
+import { clampPlaybackProgress, playbackPulse } from './playback-visuals';
 
 export interface BoardRenderOptions {
   readonly selectedCell?: number | null;
@@ -18,6 +19,7 @@ export interface BoardRenderOptions {
   readonly rainCells?: readonly RainEvent[];
   readonly forecastCells?: readonly ForecastCellView[];
   readonly riskCells?: readonly StageCellRiskView[];
+  readonly playbackProgress?: number | null;
   readonly background?: string;
 }
 
@@ -279,10 +281,18 @@ export function renderIsometricBoard(
   }
 
   const preview = options.preview;
+  const playbackProgress = clampPlaybackProgress(options.playbackProgress);
+  const playbackPulseValue = playbackPulse(playbackProgress);
   const activePlacementCells = options.activePlacementCells ?? [];
   for (const index of activePlacementCells) {
     const geometry = getCellGeometry(layout, renderSnapshot, index);
-    fillPolygon(context, geometry.top, 'rgba(255, 208, 92, 0.24)', '#ffd166', 2);
+    fillPolygon(
+      context,
+      geometry.top,
+      `rgba(255, 208, 92, ${0.12 + playbackPulseValue * 0.22})`,
+      '#ffd166',
+      2 + playbackPulseValue
+    );
   }
 
   const activeFlow = options.flowResult ?? null;
@@ -301,12 +311,18 @@ export function renderIsometricBoard(
     }
   }
 
-  if (activeFlow !== null) drawFlowPreview(context, layout, snapshot, activeFlow);
+  if (activeFlow !== null) {
+    const previousAlpha = context.globalAlpha;
+    context.globalAlpha = 0.58 + playbackPulseValue * 0.42;
+    drawFlowPreview(context, layout, snapshot, activeFlow);
+    context.globalAlpha = previousAlpha;
+  }
 
   for (const rain of options.rainCells ?? []) {
     const geometry = getCellGeometry(layout, snapshot, rain.index);
+    const radius = Math.max(3, layout.tileWidth * 0.06) * (0.72 + playbackPulseValue * 0.55);
     context.beginPath();
-    context.arc(geometry.center.x, geometry.center.y - layout.tileHeight * 0.18, Math.max(3, layout.tileWidth * 0.06), 0, Math.PI * 2);
+    context.arc(geometry.center.x, geometry.center.y - layout.tileHeight * 0.18, radius, 0, Math.PI * 2);
     context.fillStyle = '#b9e7ff';
     context.fill();
   }

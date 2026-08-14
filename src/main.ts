@@ -434,7 +434,8 @@ function render(): void {
     flowResult: playbackFrame?.event?.flowResult ?? null,
     rainCells: playbackFrame?.event?.rainCells ?? [],
     forecastCells: projection.forecastCells,
-    riskCells: projection.risks
+    riskCells: projection.risks,
+    playbackProgress: playbackFrame?.progress ?? null
   });
 
   const progress = getStageObjectiveProgress(currentStage, view.snapshot.board, view.snapshot.metrics);
