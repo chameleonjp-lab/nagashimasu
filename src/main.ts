@@ -5,9 +5,11 @@ import {
   readProgress,
   recordClearedStage,
   setLastStageId,
+  setProgressPlaybackSpeed,
   setProgressTimerMode,
   writeProgress
 } from './application/progress-storage';
+import type { ProgressPlaybackSpeed } from './application/progress-storage';
 import { StageController } from './application/stage-controller';
 import { TurnTimer, formatRemainingSeconds, timerDurationMs } from './application/turn-timer';
 import type { CandidateSlot, StageTimerMode } from './domain/stage-replay';
@@ -19,7 +21,7 @@ import { createIsometricLayout, hitTestCell } from './presentation/isometric';
 import { PointerController } from './presentation/pointer-controller';
 import { renderIsometricBoard } from './presentation/board-renderer';
 import { buildStageProjection, riskLabel } from './presentation/stage-projection';
-import { TracePlayback } from './presentation/trace-playback';
+import { TracePlayback, tracePlaybackDurations } from './presentation/trace-playback';
 import type { TracePlaybackFrame } from './presentation/trace-playback';
 import type { IsometricLayout } from './presentation/isometric';
 
@@ -83,6 +85,13 @@ appRoot.innerHTML = `
             <option value="unlimited">無制限</option>
           </select>
         </label>
+        <label class="timer-setting" for="playback-speed">水流再生速度
+          <select id="playback-speed">
+            <option value="standard">標準</option>
+            <option value="fast">高速</option>
+          </select>
+        </label>
+        <p class="setting-help" id="playback-speed-help"></p>
         <button class="start-button" id="start-game" type="button">このステージを始める</button>
       </section>
     </div>
@@ -155,6 +164,8 @@ const tutorialToggle = required<HTMLButtonElement>('#tutorial-toggle');
 const stageSummaryElement = required<HTMLElement>('#stage-summary');
 const startGameButton = required<HTMLButtonElement>('#start-game');
 const timerModeSelect = required<HTMLSelectElement>('#timer-mode');
+const playbackSpeedSelect = required<HTMLSelectElement>('#playback-speed');
+const playbackSpeedHelp = required<HTMLElement>('#playback-speed-help');
 const stageMenuButton = required<HTMLButtonElement>('#stage-menu');
 const stageOptionButtons = Array.from(
   appRoot.querySelectorAll<HTMLButtonElement>('.stage-option')
@@ -190,9 +201,11 @@ let lastMessage = '盤面をタップして仮置きし、内容を確認して�
 let playback: TracePlayback | null = null;
 let selectedStageId = currentStage.id;
 let selectedTimerMode: StageTimerMode = progress.timerMode;
+let selectedPlaybackSpeed: ProgressPlaybackSpeed = progress.playbackSpeed;
 let paused = false;
 let pageHidden = document.hidden;
 let turnTimer: TurnTimer | null = null;
+const PLAYBACK_SPEED_UNLOCK_STAGE_ID = 'stage-02-open-to-sea';
 
 function persistProgress(next: typeof progress): void {
   progress = next;
@@ -212,6 +225,12 @@ function savedStageSummary(stageId: string): string {
   return ` クリア済み（最高${saved.bestTotal ?? 0}点・${saved.bestGrade ?? '-'}）`;
 }
 
+function playbackSpeedUnlocked(): boolean {
+  return progress.stages.some(
+    (entry) => entry.stageId === PLAYBACK_SPEED_UNLOCK_STAGE_ID && entry.cleared
+  );
+}
+
 function updateStagePicker(): void {
   const selected = getBuiltInStage(selectedStageId);
   if (selected === undefined) return;
@@ -220,6 +239,12 @@ function updateStagePicker(): void {
   }
   timerModeSelect.value = selectedTimerMode;
   timerModeSelect.disabled = selected.timerSeconds === null;
+  const speedUnlocked = playbackSpeedUnlocked();
+  playbackSpeedSelect.disabled = !speedUnlocked;
+  playbackSpeedSelect.value = speedUnlocked ? selectedPlaybackSpeed : 'standard';
+  playbackSpeedHelp.textContent = speedUnlocked
+    ? '高速でも、施工・雨・水流・評価の全区間を表示します。'
+    : 'ステージ2をクリアすると高速を選べます。';
   const timerSummary = selected.timerSeconds === null
     ? '時間制限なし。'
     : (() => {
@@ -382,7 +407,9 @@ function startPlayback(execution: StageExecution): void {
       }
       render();
     }
-  });
+  }, tracePlaybackDurations(
+    playbackSpeedUnlocked() ? selectedPlaybackSpeed : 'standard'
+  ));
   playback.start();
 }
 
@@ -641,6 +668,18 @@ timerModeSelect.addEventListener('change', () => {
   if (value !== 'standard' && value !== 'extended' && value !== 'unlimited') return;
   selectedTimerMode = value;
   persistProgress(setProgressTimerMode(progress, value));
+  updateStagePicker();
+});
+
+playbackSpeedSelect.addEventListener('change', () => {
+  if (!playbackSpeedUnlocked()) {
+    updateStagePicker();
+    return;
+  }
+  const value = playbackSpeedSelect.value;
+  if (value !== 'standard' && value !== 'fast') return;
+  selectedPlaybackSpeed = value;
+  persistProgress(setProgressPlaybackSpeed(progress, value));
   updateStagePicker();
 });
 

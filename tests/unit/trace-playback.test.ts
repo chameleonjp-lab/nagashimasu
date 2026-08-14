@@ -4,15 +4,17 @@ import { StageController } from '../../src/application/stage-controller';
 import { getBuiltInStage } from '../../src/domain/stages';
 import {
   createTracePlaybackTimeline,
+  tracePlaybackDurations,
   tracePlaybackFrameAt
 } from '../../src/presentation/trace-playback';
 
 const stage = getBuiltInStage('stage-01-first-pond');
 if (stage === undefined) throw new Error('stage fixture missing');
+const fixtureStage = stage;
 
 describe('trace playback timeline', () => {
   it('keeps the committed trace order and exposes deterministic phase progress', () => {
-    const controller = new StageController(stage);
+    const controller = new StageController(fixtureStage);
     controller.setAnchor(8);
     const execution = controller.confirm();
     if (execution === null || !execution.accepted) throw new Error('fixture execution failed');
@@ -77,4 +79,23 @@ describe('trace playback timeline', () => {
       undoMs: 0
     })).toThrow(RangeError);
   });
+
+  it('offers a faster presentation without dropping trace events', () => {
+    const standard = tracePlaybackDurations('standard');
+    const fast = tracePlaybackDurations('fast');
+    expect(fast.constructionMs).toBeLessThan(standard.constructionMs);
+    expect(fast.rainMs).toBeLessThan(standard.rainMs);
+    expect(fast.flowMs).toBeLessThan(standard.flowMs);
+    expect(fast.evaluationMs).toBeLessThan(standard.evaluationMs);
+    expect(createTracePlaybackTimeline(stageTrace(), fast)).toHaveLength(7);
+    expect(() => tracePlaybackDurations('instant' as never)).toThrow(RangeError);
+  });
 });
+
+function stageTrace() {
+  const controller = new StageController(fixtureStage);
+  controller.setAnchor(8);
+  const execution = controller.confirm();
+  if (execution === null || !execution.accepted) throw new Error('fixture execution failed');
+  return execution.trace;
+}
