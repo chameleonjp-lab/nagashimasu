@@ -1,0 +1,36 @@
+# ADR 0011: M4途中保存・再開
+
+## 状態
+
+Accepted／M4実装中
+
+## 背景
+
+M4の進捗保存v2は設定やクリア記録だけを保持しており、ページ再読込や離脱後に進行中の盤面へ戻ることはできなかった。一方、StageSessionは高レベル操作列から決定論的に同じ状態を再構成できるため、可変の水流配列を直接シリアライズせずに途中状態を保存できる。
+
+## 決定
+
+- 途中保存の形式を`StageSaveV1`とする。ルートは`version`、`replay`、`fullStateHash`、`reversibleGameplayHash`だけを持つ。
+- 保存キーは`nagashimasu.stage.v1`とし、現在の1セッションだけを保持する。
+- `replay`は受理済みの高レベル`StageReplayV1`を正本とする。低レベルtraceや水流途中の配列は保存しない。
+- 受理済み操作の直後に、操作列と現在のfull／reversible hashを保存する。無効操作や仮置き、候補選択、回転、取消は保存を更新しない。
+- 起動時は組み込みステージの`stageId`、`dataVersion`、`definitionDigest`を照合し、`StageController`で操作列を再実行する。復元後の2種類のhashが保存値と一致した場合だけ再開可能とする。
+- タイトル画面に「続きから再開」を表示する。再開時のタイマー設定は保存されたreplay headerの`timerMode`を使う。
+- 壁時計の経過時間、残り時間、仮置き中の配置、再生演出の位置は保存しない。再開後は新しい手番のタイマーをApplication側で開始する。
+- 同じステージを「このステージを始める」で新規開始した場合は、そのステージの途中保存を破棄する。クリアまたは失敗のtrace再生が終わった時点でも破棄する。
+- JSONの未知キー、壊れた値、保存hash不一致、定義変更、再生失敗は保存を破棄し、新規セッションを阻害しない。
+
+## 禁止事項
+
+- StageReplayV1へ途中保存専用の項目を追加しない。
+- Domainへ`Date`、`performance.now`、localStorageを持ち込まない。
+- 水流途中の状態をPresentation側で推測して保存・復元しない。
+- hash不一致の保存をユーザー確認なしで再開しない。
+- クリア／失敗した終端状態を「途中から再開できる状態」として残さない。
+
+## 検証
+
+- StageSaveV1のJSON往復、未知キー、hash不一致、壊れた保存、Storage例外を検査する。
+- 1手進めたStageControllerをreplayから再構成し、snapshot、fullStateHash、reversibleGameplayHashが一致することを検査する。
+- 保存値に壁時計キーや残り時間を含めないことを検査する。
+- 型検査、全単体テスト、ドメイン／画面build・smokeを通す。
