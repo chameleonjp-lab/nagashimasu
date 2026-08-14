@@ -21,8 +21,9 @@
 - 確定後の施工・雨・水流・評価を短く再生する表示と、再生中の入力ロック
 - クリア／失敗の結果、スコア、失敗理由、即時再挑戦の表示
 - タイトル画面、3ステップの遊び方、ステージ1～3の選択
+- ステージ3の標準／長め／無制限の思考時間、一時停止、ページ離脱時の自動停止
 
-現在はM3の画面基礎に加え、M4のタイトルからステージ開始までの縦切りを実装しています。端末上の受入確認、時間制限・一時停止・保存、完成版の操作調整、ステージ4～6、GitHub Pages公開は後続工程で扱います。Pagesの設定と公開は、完成後の明示承認まで行いません。
+現在はM3の画面基礎に加え、M4のタイトルから結果までの縦切り、ステージ3の思考時間、一時停止・復帰を実装しています。進行状況の保存、端末上の受入確認、完成版の操作調整、ステージ4～6、GitHub Pages公開は後続工程で扱います。Pagesの設定と公開は、完成後の明示承認まで行いません。
 
 ## 開発用コマンド
 
@@ -35,4 +36,4 @@ npm run check
 
 `npm run check`は型検査、単体テスト、ドメイン用ビルド、画面用ビルドの検査を順に実行します。画面は`npm run build:app`でも個別にビルドできます。
 
-詳しい仕様と工程は[企画・技術・実装計画書](docs/PROJECT_PLAN.md)、[M1水流モデル契約](docs/adr/0001-deterministic-water-model.md)、[M2ステージ進行契約](docs/adr/0002-stage-progression.md)、[M3表示・入力契約](docs/adr/0003-presentation-input.md)、[M4ステージ入口契約](docs/adr/0004-stage-entry.md)に記録しています。
+詳しい仕様と工程は[企画・技術・実装計画書](docs/PROJECT_PLAN.md)、[M1水流モデル契約](docs/adr/0001-deterministic-water-model.md)、[M2ステージ進行契約](docs/adr/0002-stage-progression.md)、[M3表示・入力契約](docs/adr/0003-presentation-input.md)、[M4ステージ入口契約](docs/adr/0004-stage-entry.md)、[M4タイマー・一時停止契約](docs/adr/0005-timer-pause.md)に記録しています。
