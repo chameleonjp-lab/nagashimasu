@@ -61,8 +61,11 @@ appRoot.innerHTML = `
       <h1 id="start-title">ナガシマス</h1>
       <p class="start-lead">次の雨を見て、2つの施工候補から1つを選びます。盤面をタップして仮置きし、結果を確認してから確定します。</p>
       <section class="tutorial-card" aria-labelledby="tutorial-title">
-        <h2 id="tutorial-title">遊び方</h2>
-        <ol>
+        <div class="tutorial-heading">
+          <h2 id="tutorial-title">遊び方</h2>
+          <button class="tutorial-toggle" id="tutorial-toggle" type="button" aria-controls="tutorial-steps" aria-expanded="true">閉じる</button>
+        </div>
+        <ol id="tutorial-steps">
           <li><strong>候補を選ぶ</strong><span>上げる・下げる候補を比べます。</span></li>
           <li><strong>仮置きして読む</strong><span>盤面をタップすると、雨と次の水流を予測します。</span></li>
           <li><strong>確定する</strong><span>回転や取消を使い、納得してから施工確定を押します。</span></li>
@@ -146,6 +149,8 @@ const stageElement = required<HTMLElement>('.game-stage');
 const startPanel = required<HTMLElement>('#start-panel');
 const gameShell = required<HTMLElement>('#game-shell');
 const gameTitleElement = required<HTMLElement>('#game-title');
+const tutorialSteps = required<HTMLOListElement>('#tutorial-steps');
+const tutorialToggle = required<HTMLButtonElement>('#tutorial-toggle');
 const stageSummaryElement = required<HTMLElement>('#stage-summary');
 const startGameButton = required<HTMLButtonElement>('#start-game');
 const timerModeSelect = required<HTMLSelectElement>('#timer-mode');
@@ -191,6 +196,13 @@ let turnTimer: TurnTimer | null = null;
 function persistProgress(next: typeof progress): void {
   progress = next;
   writeProgress(progress);
+}
+
+function updateTutorialVisibility(): void {
+  const expanded = !progress.tutorialSeen;
+  tutorialSteps.hidden = !expanded;
+  tutorialToggle.setAttribute('aria-expanded', String(expanded));
+  tutorialToggle.textContent = expanded ? '閉じる' : '遊び方を表示';
 }
 
 function savedStageSummary(stageId: string): string {
@@ -302,6 +314,7 @@ function startSelectedStage(): void {
   pausePanel.hidden = true;
   currentStage = selected;
   persistProgress(markTutorialSeen(setLastStageId(progress, selected.id)));
+  updateTutorialVisibility();
   controller = new StageController(currentStage, selectedTimerMode);
   lastMessage = '盤面をタップして仮置きし、内容を確認してから施工確定を押してください。';
   startPanel.hidden = true;
@@ -319,6 +332,7 @@ function showStagePicker(): void {
   gameShell.hidden = true;
   startPanel.hidden = false;
   updateStagePicker();
+  updateTutorialVisibility();
 }
 
 function phaseLabel(phase: StageTracePhase, flowStep: number | null): string {
@@ -606,6 +620,17 @@ stageOptionButtons.forEach((button) => {
   });
 });
 
+tutorialToggle.addEventListener('click', () => {
+  if (tutorialSteps.hidden) {
+    tutorialSteps.hidden = false;
+    tutorialToggle.setAttribute('aria-expanded', 'true');
+    tutorialToggle.textContent = '閉じる';
+    return;
+  }
+  persistProgress(markTutorialSeen(progress));
+  updateTutorialVisibility();
+});
+
 startGameButton.addEventListener('click', startSelectedStage);
 stageMenuButton.addEventListener('click', showStagePicker);
 
@@ -644,4 +669,5 @@ if ('ResizeObserver' in window) {
 }
 
 if (!gameShell.hidden) resizeCanvas();
+updateTutorialVisibility();
 updateStagePicker();
