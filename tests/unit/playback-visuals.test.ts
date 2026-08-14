@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { clampPlaybackProgress, playbackPulse } from '../../src/presentation/playback-visuals';
+import {
+  clampPlaybackProgress,
+  playbackPulse,
+  playbackPulseForMotion
+} from '../../src/presentation/playback-visuals';
 
 describe('playback visual timing', () => {
   it('clamps progress so presentation values cannot escape their range', () => {
@@ -18,5 +22,11 @@ describe('playback visual timing', () => {
     expect(playbackPulse(1)).toBeCloseTo(0);
     expect(playbackPulse(0.25)).toBe(playbackPulse(0.25));
   });
-});
 
+  it('uses a fixed highlight when reduced motion is enabled', () => {
+    expect(playbackPulseForMotion(0, true)).toBe(0.5);
+    expect(playbackPulseForMotion(0.5, true)).toBe(0.5);
+    expect(playbackPulseForMotion(1, true)).toBe(0.5);
+    expect(playbackPulseForMotion(0.5, false)).toBeCloseTo(1);
+  });
+});

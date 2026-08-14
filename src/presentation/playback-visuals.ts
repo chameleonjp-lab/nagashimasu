@@ -13,3 +13,10 @@ export function playbackPulse(value: number | null | undefined): number {
   return Math.sin(Math.PI * clampPlaybackProgress(value));
 }
 
+/** Keeps the highlight visible without animating it when motion is reduced. */
+export function playbackPulseForMotion(
+  value: number | null | undefined,
+  reducedMotion: boolean
+): number {
+  return reducedMotion ? 0.5 : playbackPulse(value);
+}

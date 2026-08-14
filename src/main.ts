@@ -26,6 +26,7 @@ import type { IsometricLayout } from './presentation/isometric';
 const root = document.querySelector<HTMLDivElement>('#app');
 if (root === null) throw new Error('app root is missing');
 const appRoot = root;
+const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 const stage = getBuiltInStage('stage-01-first-pond');
 if (stage === undefined) throw new Error('built-in stage-01-first-pond is missing');
@@ -449,7 +450,8 @@ function render(): void {
     rainCells: playbackFrame?.event?.rainCells ?? [],
     forecastCells: projection.forecastCells,
     riskCells: projection.risks,
-    playbackProgress: playbackFrame?.progress ?? null
+    playbackProgress: playbackFrame?.progress ?? null,
+    reducedMotion: reducedMotionQuery.matches
   });
 
   const progress = getStageObjectiveProgress(currentStage, view.snapshot.board, view.snapshot.metrics);
