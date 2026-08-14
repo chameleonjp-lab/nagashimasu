@@ -1,5 +1,13 @@
 import './styles.css';
 
+import {
+  markTutorialSeen,
+  readProgress,
+  recordClearedStage,
+  setLastStageId,
+  setProgressTimerMode,
+  writeProgress
+} from './application/progress-storage';
 import { StageController } from './application/stage-controller';
 import { TurnTimer, formatRemainingSeconds, timerDurationMs } from './application/turn-timer';
 import type { CandidateSlot, StageTimerMode } from './domain/stage-replay';
@@ -21,7 +29,8 @@ const appRoot = root;
 
 const stage = getBuiltInStage('stage-01-first-pond');
 if (stage === undefined) throw new Error('built-in stage-01-first-pond is missing');
-let currentStage = stage;
+let progress = readProgress();
+let currentStage = getBuiltInStage(progress.lastStageId) ?? stage;
 
 function stageObjectiveText(definition: ValidatedStageDefinition): string {
   switch (definition.objective.type) {
@@ -44,7 +53,7 @@ const stageOptionsMarkup = BUILT_IN_STAGES.map((definition) => `
   </button>
 `).join('');
 
-let controller = new StageController(currentStage);
+let controller = new StageController(currentStage, progress.timerMode);
 appRoot.innerHTML = `
   <section class="start-panel" id="start-panel" aria-labelledby="start-title">
     <div class="start-card">
@@ -174,10 +183,21 @@ let layout: IsometricLayout | null = null;
 let lastMessage = '盤面をタップして仮置きし、内容を確認してから施工確定を押してください。';
 let playback: TracePlayback | null = null;
 let selectedStageId = currentStage.id;
-let selectedTimerMode: StageTimerMode = 'standard';
+let selectedTimerMode: StageTimerMode = progress.timerMode;
 let paused = false;
 let pageHidden = document.hidden;
 let turnTimer: TurnTimer | null = null;
+
+function persistProgress(next: typeof progress): void {
+  progress = next;
+  writeProgress(progress);
+}
+
+function savedStageSummary(stageId: string): string {
+  const saved = progress.stages.find((entry) => entry.stageId === stageId);
+  if (saved === undefined || !saved.cleared) return '';
+  return ` クリア済み（最高${saved.bestTotal ?? 0}点・${saved.bestGrade ?? '-'}）`;
+}
 
 function updateStagePicker(): void {
   const selected = getBuiltInStage(selectedStageId);
@@ -198,7 +218,7 @@ function updateStagePicker(): void {
           : `標準${selected.timerSeconds}秒`;
       return `標準${selected.timerSeconds}秒／長め${extendedSeconds}秒／無制限（現在: ${selectedLabel}）。`;
     })();
-  stageSummaryElement.textContent = `${selected.name}: ${stageObjectiveText(selected)}。${timerSummary}`;
+  stageSummaryElement.textContent = `${selected.name}: ${stageObjectiveText(selected)}。${timerSummary}${savedStageSummary(selected.id)}`;
 }
 
 function thinkingDurationMs(): number | null {
@@ -281,6 +301,7 @@ function startSelectedStage(): void {
   paused = false;
   pausePanel.hidden = true;
   currentStage = selected;
+  persistProgress(markTutorialSeen(setLastStageId(progress, selected.id)));
   controller = new StageController(currentStage, selectedTimerMode);
   lastMessage = '盤面をタップして仮置きし、内容を確認してから施工確定を押してください。';
   startPanel.hidden = true;
@@ -336,6 +357,13 @@ function startPlayback(execution: StageExecution): void {
       playback = null;
       if (!paused && !pageHidden && controller.view.snapshot.phase === 'awaiting-turn') {
         startTurnTimer();
+      }
+      if (controller.view.snapshot.phase === 'cleared') {
+        const score = controller.view.snapshot.score;
+        persistProgress(recordClearedStage(progress, currentStage.id, {
+          total: score.total,
+          grade: score.grade
+        }));
       }
       render();
     }
@@ -572,6 +600,7 @@ stageOptionButtons.forEach((button) => {
     const stageId = button.dataset['stageId'];
     if (stageId === undefined || getBuiltInStage(stageId) === undefined) return;
     selectedStageId = stageId;
+    persistProgress(setLastStageId(progress, stageId));
     updateStagePicker();
   });
 });
@@ -583,6 +612,7 @@ timerModeSelect.addEventListener('change', () => {
   const value = timerModeSelect.value;
   if (value !== 'standard' && value !== 'extended' && value !== 'unlimited') return;
   selectedTimerMode = value;
+  persistProgress(setProgressTimerMode(progress, value));
   updateStagePicker();
 });
 
