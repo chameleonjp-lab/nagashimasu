@@ -191,12 +191,12 @@ function updateStagePicker(): void {
     ? '時間制限なし。'
     : (() => {
       const extendedSeconds = Math.round(selected.timerSeconds * 1.5);
-      const selectedDuration = selectedTimerMode === 'extended'
+      const selectedLabel = selectedTimerMode === 'extended'
         ? `長め${extendedSeconds}秒`
         : selectedTimerMode === 'unlimited'
           ? '無制限'
           : `標準${selected.timerSeconds}秒`;
-      return `標準${selected.timerSeconds}秒／${selectedDuration}。`;
+      return `標準${selected.timerSeconds}秒／長め${extendedSeconds}秒／無制限（現在: ${selectedLabel}）。`;
     })();
   stageSummaryElement.textContent = `${selected.name}: ${stageObjectiveText(selected)}。${timerSummary}`;
 }
