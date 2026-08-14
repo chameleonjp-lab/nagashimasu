@@ -11,6 +11,7 @@ import {
 } from './application/progress-storage';
 import type { ProgressPlaybackSpeed } from './application/progress-storage';
 import { StageController } from './application/stage-controller';
+import { isStageUnlocked, stageAccessLabel } from './application/stage-access';
 import { TurnTimer, formatRemainingSeconds, timerDurationMs } from './application/turn-timer';
 import type { CandidateSlot, StageTimerMode } from './domain/stage-replay';
 import { getStageObjectiveProgress } from './domain/stage-session';
@@ -38,7 +39,12 @@ const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
 const stage = getBuiltInStage('stage-01-first-pond');
 if (stage === undefined) throw new Error('built-in stage-01-first-pond is missing');
 let progress = readProgress();
-let currentStage = getBuiltInStage(progress.lastStageId) ?? stage;
+const clearedStageIds = (value: typeof progress): readonly string[] =>
+  value.stages.filter((entry) => entry.cleared).map((entry) => entry.stageId);
+const savedStage = getBuiltInStage(progress.lastStageId);
+let currentStage = savedStage !== undefined && isStageUnlocked(savedStage.id, clearedStageIds(progress))
+  ? savedStage
+  : stage;
 
 function stageObjectiveText(definition: ValidatedStageDefinition): string {
   switch (definition.objective.type) {
@@ -58,6 +64,7 @@ const stageOptionsMarkup = BUILT_IN_STAGES.map((definition) => `
     <span class="stage-option-number">ステージ${stageNumber(definition)}</span>
     <strong>${definition.name}</strong>
     <small>${stageObjectiveText(definition)}</small>
+    <small class="stage-option-status" data-stage-status="${definition.id}"></small>
   </button>
 `).join('');
 
@@ -245,8 +252,20 @@ function playbackSpeedUnlocked(): boolean {
 function updateStagePicker(): void {
   const selected = getBuiltInStage(selectedStageId);
   if (selected === undefined) return;
+  const clearedIds = clearedStageIds(progress);
   for (const button of stageOptionButtons) {
+    const stageId = button.dataset['stageId'];
+    const unlocked = stageId !== undefined && isStageUnlocked(stageId, clearedIds);
     button.setAttribute('aria-pressed', String(button.dataset['stageId'] === selected.id));
+    button.disabled = !unlocked;
+    button.setAttribute('aria-disabled', String(!unlocked));
+    button.title = unlocked
+      ? ''
+      : '前のステージをクリアすると解放されます。';
+    const status = button.querySelector<HTMLElement>('[data-stage-status]');
+    if (status !== null && stageId !== undefined) {
+      status.textContent = stageAccessLabel(stageId, clearedIds);
+    }
   }
   timerModeSelect.value = selectedTimerMode;
   timerModeSelect.disabled = selected.timerSeconds === null;
@@ -343,7 +362,10 @@ function resumeGame(): void {
 
 function startSelectedStage(): void {
   const selected = getBuiltInStage(selectedStageId);
-  if (selected === undefined) return;
+  if (selected === undefined || !isStageUnlocked(selected.id, clearedStageIds(progress))) {
+    updateStagePicker();
+    return;
+  }
   playback?.cancel();
   playback = null;
   stopTurnTimer();
@@ -415,6 +437,7 @@ function startPlayback(execution: StageExecution): void {
           total: score.total,
           grade: score.grade
         }));
+        updateStagePicker();
       }
       render();
     }
@@ -662,7 +685,11 @@ retryButton.addEventListener('click', () => {
 stageOptionButtons.forEach((button) => {
   button.addEventListener('click', () => {
     const stageId = button.dataset['stageId'];
-    if (stageId === undefined || getBuiltInStage(stageId) === undefined) return;
+    if (
+      stageId === undefined ||
+      getBuiltInStage(stageId) === undefined ||
+      !isStageUnlocked(stageId, clearedStageIds(progress))
+    ) return;
     selectedStageId = stageId;
     persistProgress(setLastStageId(progress, stageId));
     updateStagePicker();

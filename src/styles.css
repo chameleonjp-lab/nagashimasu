@@ -208,6 +208,11 @@ button:disabled {
   font-weight: 500;
 }
 
+.stage-option-status {
+  color: #ffd166;
+  font-size: 0.72rem;
+}
+
 .stage-summary {
   min-height: 23px;
   margin: 0;
