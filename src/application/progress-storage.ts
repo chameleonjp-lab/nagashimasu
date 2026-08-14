@@ -1,9 +1,19 @@
-export const PROGRESS_SAVE_VERSION = 'nagashimasu-progress-v1' as const;
-export const PROGRESS_STORAGE_KEY = 'nagashimasu.progress.v1';
+export const PROGRESS_SAVE_VERSION = 'nagashimasu-progress-v2' as const;
+export const PROGRESS_STORAGE_KEY = 'nagashimasu.progress.v2';
+export const LEGACY_PROGRESS_SAVE_VERSION = 'nagashimasu-progress-v1' as const;
+export const LEGACY_PROGRESS_STORAGE_KEY = 'nagashimasu.progress.v1';
 export const MAX_SAVED_STAGE_ENTRIES = 64;
 
 const SAFE_STAGE_ID = /^[A-Za-z0-9_-]{1,48}$/u;
-const SAVE_KEYS = Object.freeze([
+const SAVE_KEYS_V2 = Object.freeze([
+  'version',
+  'timerMode',
+  'playbackSpeed',
+  'tutorialSeen',
+  'lastStageId',
+  'stages'
+] as const);
+const SAVE_KEYS_V1 = Object.freeze([
   'version',
   'timerMode',
   'tutorialSeen',
@@ -18,6 +28,7 @@ const STAGE_KEYS = Object.freeze([
 ] as const);
 
 export type ProgressTimerMode = 'standard' | 'extended' | 'unlimited';
+export type ProgressPlaybackSpeed = 'standard' | 'fast';
 export type ProgressGrade = 'S' | 'A' | 'B' | 'C';
 
 export interface SavedStageProgress {
@@ -28,8 +39,17 @@ export interface SavedStageProgress {
 }
 
 export interface ProgressSaveV1 {
+  readonly version: typeof LEGACY_PROGRESS_SAVE_VERSION;
+  readonly timerMode: ProgressTimerMode;
+  readonly tutorialSeen: boolean;
+  readonly lastStageId: string;
+  readonly stages: readonly SavedStageProgress[];
+}
+
+export interface ProgressSaveV2 {
   readonly version: typeof PROGRESS_SAVE_VERSION;
   readonly timerMode: ProgressTimerMode;
+  readonly playbackSpeed: ProgressPlaybackSpeed;
   readonly tutorialSeen: boolean;
   readonly lastStageId: string;
   readonly stages: readonly SavedStageProgress[];
@@ -48,9 +68,10 @@ export interface ProgressStorageLike {
 
 type PlainRecord = Record<string, unknown>;
 
-const DEFAULT_PROGRESS: ProgressSaveV1 = Object.freeze({
+const DEFAULT_PROGRESS: ProgressSaveV2 = Object.freeze({
   version: PROGRESS_SAVE_VERSION,
   timerMode: 'standard',
+  playbackSpeed: 'standard',
   tutorialSeen: false,
   lastStageId: 'stage-01-first-pond',
   stages: Object.freeze([])
@@ -126,6 +147,13 @@ function timerMode(value: unknown, label: string): ProgressTimerMode {
   return value;
 }
 
+function playbackSpeed(value: unknown, label: string): ProgressPlaybackSpeed {
+  if (value !== 'standard' && value !== 'fast') {
+    throw new RangeError(`${label} must be standard or fast`);
+  }
+  return value;
+}
+
 function grade(value: unknown, label: string): ProgressGrade | null {
   if (value === null) return null;
   if (value !== 'S' && value !== 'A' && value !== 'B' && value !== 'C') {
@@ -165,14 +193,10 @@ function parseStage(value: unknown, index: number): SavedStageProgress {
   });
 }
 
-/** Strictly validates, copies, and freezes an untrusted progress value. */
-export function parseProgressSave(value: unknown): ProgressSaveV1 {
-  assertPlainRecord(value, 'progress');
-  exactKeys(value, SAVE_KEYS, 'progress');
-  if (dataValue(value, 'version', 'progress') !== PROGRESS_SAVE_VERSION) {
-    throw new RangeError(`progress.version must be ${PROGRESS_SAVE_VERSION}`);
-  }
-
+function parseProgressFields(
+  value: PlainRecord,
+  speed: ProgressPlaybackSpeed
+): ProgressSaveV2 {
   const stagesValue = dataValue(value, 'stages', 'progress');
   plainArray(stagesValue, MAX_SAVED_STAGE_ENTRIES, 'progress.stages');
   const stages = stagesValue.map((entry, index) => parseStage(entry, index));
@@ -186,6 +210,7 @@ export function parseProgressSave(value: unknown): ProgressSaveV1 {
   return Object.freeze({
     version: PROGRESS_SAVE_VERSION,
     timerMode: timerMode(dataValue(value, 'timerMode', 'progress'), 'progress.timerMode'),
+    playbackSpeed: speed,
     tutorialSeen: (() => {
       const seenValue = dataValue(value, 'tutorialSeen', 'progress');
       if (typeof seenValue !== 'boolean') throw new TypeError('progress.tutorialSeen must be boolean');
@@ -196,29 +221,59 @@ export function parseProgressSave(value: unknown): ProgressSaveV1 {
   });
 }
 
-export function createDefaultProgress(): ProgressSaveV1 {
+function parseLegacyProgress(value: PlainRecord): ProgressSaveV2 {
+  exactKeys(value, SAVE_KEYS_V1, 'progress');
+  if (dataValue(value, 'version', 'progress') !== LEGACY_PROGRESS_SAVE_VERSION) {
+    throw new RangeError(`progress.version must be ${LEGACY_PROGRESS_SAVE_VERSION}`);
+  }
+  return parseProgressFields(value, 'standard');
+}
+
+/** Strictly validates, copies, freezes, and migrates an untrusted progress value. */
+export function parseProgressSave(value: unknown): ProgressSaveV2 {
+  assertPlainRecord(value, 'progress');
+  const version = dataValue(value, 'version', 'progress');
+  if (version === LEGACY_PROGRESS_SAVE_VERSION) return parseLegacyProgress(value);
+  exactKeys(value, SAVE_KEYS_V2, 'progress');
+  if (version !== PROGRESS_SAVE_VERSION) {
+    throw new RangeError(`progress.version must be ${PROGRESS_SAVE_VERSION}`);
+  }
+  return parseProgressFields(
+    value,
+    playbackSpeed(dataValue(value, 'playbackSpeed', 'progress'), 'progress.playbackSpeed')
+  );
+}
+
+export function createDefaultProgress(): ProgressSaveV2 {
   return DEFAULT_PROGRESS;
 }
 
 function updateProgress(
-  progress: ProgressSaveV1,
-  changes: Partial<Pick<ProgressSaveV1, 'timerMode' | 'tutorialSeen' | 'lastStageId'>>
-): ProgressSaveV1 {
+  progress: ProgressSaveV2,
+  changes: Partial<Pick<ProgressSaveV2, 'timerMode' | 'playbackSpeed' | 'tutorialSeen' | 'lastStageId'>>
+): ProgressSaveV2 {
   return parseProgressSave({ ...progress, ...changes, stages: progress.stages });
 }
 
 export function setProgressTimerMode(
-  progress: ProgressSaveV1,
+  progress: ProgressSaveV2,
   value: ProgressTimerMode
-): ProgressSaveV1 {
+): ProgressSaveV2 {
   return updateProgress(progress, { timerMode: value });
 }
 
-export function markTutorialSeen(progress: ProgressSaveV1): ProgressSaveV1 {
+export function setProgressPlaybackSpeed(
+  progress: ProgressSaveV2,
+  value: ProgressPlaybackSpeed
+): ProgressSaveV2 {
+  return updateProgress(progress, { playbackSpeed: value });
+}
+
+export function markTutorialSeen(progress: ProgressSaveV2): ProgressSaveV2 {
   return updateProgress(progress, { tutorialSeen: true });
 }
 
-export function setLastStageId(progress: ProgressSaveV1, stageIdValue: string): ProgressSaveV1 {
+export function setLastStageId(progress: ProgressSaveV2, stageIdValue: string): ProgressSaveV2 {
   return updateProgress(progress, { lastStageId: stageIdValue });
 }
 
@@ -233,10 +288,10 @@ function gradeRank(value: ProgressGrade | null): number {
 }
 
 export function recordClearedStage(
-  progress: ProgressSaveV1,
+  progress: ProgressSaveV2,
   stageIdValue: string,
   result: StageResultToSave
-): ProgressSaveV1 {
+): ProgressSaveV2 {
   const id = stageId(stageIdValue, 'stageId');
   const validatedTotal = total(result.total, 'result.total');
   if (validatedTotal === null) throw new RangeError('result.total must be an integer from 0 to 100');
@@ -271,7 +326,7 @@ function browserStorage(): ProgressStorageLike | null {
   }
 }
 
-export function readProgress(storage: ProgressStorageLike | null = browserStorage()): ProgressSaveV1 {
+export function readProgress(storage: ProgressStorageLike | null = browserStorage()): ProgressSaveV2 {
   if (storage === null) return createDefaultProgress();
   let raw: string | null;
   try {
@@ -279,17 +334,30 @@ export function readProgress(storage: ProgressStorageLike | null = browserStorag
   } catch {
     return createDefaultProgress();
   }
+  if (raw !== null) {
+    try {
+      return parseProgressSave(JSON.parse(raw) as unknown);
+    } catch {
+      try { storage.removeItem(PROGRESS_STORAGE_KEY); } catch { /* storage is unavailable */ }
+    }
+  }
+
+  try {
+    raw = storage.getItem(LEGACY_PROGRESS_STORAGE_KEY);
+  } catch {
+    return createDefaultProgress();
+  }
   if (raw === null) return createDefaultProgress();
   try {
     return parseProgressSave(JSON.parse(raw) as unknown);
   } catch {
-    try { storage.removeItem(PROGRESS_STORAGE_KEY); } catch { /* storage is unavailable */ }
+    try { storage.removeItem(LEGACY_PROGRESS_STORAGE_KEY); } catch { /* storage is unavailable */ }
     return createDefaultProgress();
   }
 }
 
 export function writeProgress(
-  progress: ProgressSaveV1,
+  progress: ProgressSaveV2,
   storage: ProgressStorageLike | null = browserStorage()
 ): boolean {
   if (storage === null) return false;

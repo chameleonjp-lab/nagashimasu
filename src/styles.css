@@ -238,6 +238,13 @@ button:disabled {
   opacity: 0.5;
 }
 
+.setting-help {
+  margin: -2px 0 0;
+  color: #8fb9c8;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
 .start-button {
   width: 100%;
   border-color: #ffd166;

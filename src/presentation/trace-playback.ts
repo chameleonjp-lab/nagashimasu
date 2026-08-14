@@ -8,6 +8,8 @@ export interface TracePlaybackDurations {
   readonly undoMs: number;
 }
 
+export type TracePlaybackSpeed = 'standard' | 'fast';
+
 export const DEFAULT_TRACE_PLAYBACK_DURATIONS: TracePlaybackDurations = Object.freeze({
   constructionMs: 180,
   rainMs: 280,
@@ -15,6 +17,20 @@ export const DEFAULT_TRACE_PLAYBACK_DURATIONS: TracePlaybackDurations = Object.f
   evaluationMs: 180,
   undoMs: 180
 });
+
+const FAST_TRACE_PLAYBACK_DURATIONS: TracePlaybackDurations = Object.freeze({
+  constructionMs: 120,
+  rainMs: 180,
+  flowMs: 90,
+  evaluationMs: 120,
+  undoMs: 120
+});
+
+export function tracePlaybackDurations(speed: TracePlaybackSpeed): TracePlaybackDurations {
+  if (speed === 'standard') return DEFAULT_TRACE_PLAYBACK_DURATIONS;
+  if (speed === 'fast') return FAST_TRACE_PLAYBACK_DURATIONS;
+  throw new RangeError('playback speed must be standard or fast');
+}
 
 export interface TracePlaybackSegment {
   readonly event: StageTraceEvent;

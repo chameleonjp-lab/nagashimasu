@@ -8,7 +8,7 @@ if (scriptMatch?.[1] === undefined) throw new Error('app build is missing its mo
 const scriptPath = new URL(`../../dist-app/${scriptMatch[1].replace(/^\//u, '')}`, import.meta.url);
 if (!existsSync(scriptPath)) throw new Error(`app script is missing: ${scriptMatch[1]}`);
 const script = readFileSync(scriptPath, 'utf8');
-for (const marker of ['timer-mode', '一時停止中', '時間切れのため', 'visibilitychange', 'nagashimasu.progress.v1', 'localStorage', 'playbackProgress', 'tutorial-toggle', '遊び方を表示', 'prefers-reduced-motion']) {
+for (const marker of ['timer-mode', 'playback-speed', '水流再生速度', '一時停止中', '時間切れのため', 'visibilitychange', 'nagashimasu.progress.v2', 'localStorage', 'playbackProgress', 'tutorial-toggle', '遊び方を表示', 'prefers-reduced-motion']) {
   if (!script.includes(marker)) throw new Error(`app bundle is missing timer/pause marker: ${marker}`);
 }
 const cssMatch = html.match(/<link[^>]+href="([^"]+\.css)"/u);
