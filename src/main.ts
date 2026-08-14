@@ -21,6 +21,11 @@ import { createIsometricLayout, hitTestCell } from './presentation/isometric';
 import { PointerController } from './presentation/pointer-controller';
 import { renderIsometricBoard } from './presentation/board-renderer';
 import { buildStageProjection, riskLabel } from './presentation/stage-projection';
+import {
+  resultCauseText,
+  resultFirstBreakText,
+  resultImprovementHint
+} from './presentation/result-feedback';
 import { TracePlayback, tracePlaybackDurations } from './presentation/trace-playback';
 import type { TracePlaybackFrame } from './presentation/trace-playback';
 import type { IsometricLayout } from './presentation/isometric';
@@ -136,8 +141,11 @@ appRoot.innerHTML = `
       <section class="result-panel" id="result-panel" hidden aria-live="polite">
         <h2 id="result-title"></h2>
         <p id="result-summary"></p>
+        <p id="result-first-break"></p>
+        <p id="result-cause"></p>
         <p id="result-score"></p>
         <p id="result-reasons"></p>
+        <p class="result-hint" id="result-hint"></p>
         <button id="retry" type="button">もう一度</button>
         <button id="stage-menu" type="button">ステージ選択へ</button>
       </section>
@@ -187,8 +195,11 @@ const undoButton = required<HTMLButtonElement>('#undo');
 const resultPanel = required<HTMLElement>('#result-panel');
 const resultTitle = required<HTMLElement>('#result-title');
 const resultSummary = required<HTMLElement>('#result-summary');
+const resultFirstBreak = required<HTMLElement>('#result-first-break');
+const resultCause = required<HTMLElement>('#result-cause');
 const resultScore = required<HTMLElement>('#result-score');
 const resultReasons = required<HTMLElement>('#result-reasons');
+const resultHint = required<HTMLElement>('#result-hint');
 const retryButton = required<HTMLButtonElement>('#retry');
 const timerElement = required<HTMLElement>('#timer');
 const pauseButton = required<HTMLButtonElement>('#pause');
@@ -544,15 +555,24 @@ function render(): void {
 
   resultPanel.hidden = locked || !terminal;
   if (terminal) {
+    const resultInput = {
+      phase: view.snapshot.phase,
+      failureReasons: view.snapshot.failureReasons,
+      metrics: view.snapshot.metrics,
+      score: view.snapshot.score
+    } as const;
     resultTitle.textContent = view.snapshot.phase === 'cleared' ? 'クリア' : '失敗';
     resultSummary.textContent = view.snapshot.phase === 'cleared'
       ? `目的 ${progress.value} / ${progress.target} を達成しました。`
       : '今回の手番では目標を守れませんでした。';
     const score = view.snapshot.score;
+    resultFirstBreak.textContent = resultFirstBreakText(resultInput);
+    resultCause.textContent = resultCauseText(resultInput);
     resultScore.textContent = `スコア ${score.total}（安全 ${score.safety}・効率 ${score.efficiency}・制御 ${score.control}）／評価 ${score.grade ?? '-'} `;
     resultReasons.textContent = view.snapshot.failureReasons.length === 0
       ? '危険を抑え、安全な流れを作れました。'
       : view.snapshot.failureReasons.map(failureReasonText).join('／');
+    resultHint.textContent = resultImprovementHint(resultInput);
   }
   retryButton.disabled = locked;
   stageMenuButton.disabled = playback !== null;
