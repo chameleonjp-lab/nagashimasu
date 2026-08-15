@@ -15,7 +15,7 @@ describe('stage projection', () => {
     const view = controller.view;
     const beforeHash = controller.session.fullStateHash;
     const projection = buildStageProjection(stageOne, view.snapshot, view.forecasts, view.preview);
-    expect(projection.forecasts[0]?.turn).toBe(3);
+    expect(projection.forecasts[0]?.turn).toBe(2);
     expect(projection.forecasts[0]?.totalAmount).toBe(16);
     expect(projection.forecastCells.map((cell) => cell.index)).toEqual([17, 25, 17, 25]);
     expect(projection.forecastCells.every((cell) => cell.amount === 8)).toBe(true);

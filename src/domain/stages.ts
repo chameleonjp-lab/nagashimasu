@@ -11,7 +11,7 @@ import {
 } from './stage-definition';
 import type { ValidatedStageDefinition } from './stage-definition';
 
-const DATA_VERSION = '1_0_0';
+const DATA_VERSION = '1_1_0';
 const DEFAULT_GRADES = Object.freeze({ s: 90, a: 75, b: 60 });
 
 function cells(value = 0): number[] {
@@ -126,7 +126,7 @@ function createStageOne(): ValidatedStageDefinition {
     board,
     constructionMask: mask(rectangularIndices(1, 4, 0, 3)),
     storageMask: mask(pond),
-    maxTurns: 8,
+    maxTurns: 3,
     flowStepsPerTurn: 4,
     timerSeconds: null,
     pieceDefinitions: [RAISE_SINGLE, RAISE_LINE, RAISE_L],
@@ -135,20 +135,15 @@ function createStageOne(): ValidatedStageDefinition {
       'raise-single',
       'raise-single',
       'raise-l',
-      'raise-line',
-      'raise-single',
-      'raise-l',
-      'raise-line',
-      'raise-single',
-      'raise-l'
+      'raise-line'
     ],
     rainEvents: [
       {
-        turn: 3,
+        turn: 2,
         cells: pond.map((index) => ({ index, amount: 8 }))
       },
       {
-        turn: 7,
+        turn: 3,
         cells: pond.map((index) => ({ index, amount: 8 }))
       }
     ],
@@ -184,7 +179,7 @@ function createStageTwo(): ValidatedStageDefinition {
     board,
     constructionMask: mask(rectangularIndices(channelRow, channelRow, 2, 5)),
     storageMask: cells(),
-    maxTurns: 9,
+    maxTurns: 3,
     flowStepsPerTurn: 4,
     timerSeconds: null,
     pieceDefinitions: [LOWER_SINGLE, LOWER_LINE],
@@ -193,26 +188,20 @@ function createStageTwo(): ValidatedStageDefinition {
       'lower-line',
       'lower-single',
       'lower-line',
-      'lower-single',
-      'lower-line',
-      'lower-single',
-      'lower-line',
-      'lower-single',
-      'lower-line',
       'lower-single'
     ],
     rainEvents: [
-      { turn: 3, cells: [{ index: source, amount: 8 }] },
-      { turn: 7, cells: [{ index: source, amount: 8 }] }
+      { turn: 2, cells: [{ index: source, amount: 8 }] },
+      { turn: 3, cells: [{ index: source, amount: 8 }] }
     ],
-    objective: { type: 'safe-drain', target: 16 },
+    objective: { type: 'safe-drain', target: 8 },
     failure: {
       maxDangerLeak: 0,
       maxPeakProtectedOverflow: 65_535
     },
     evaluation: {
       parWork: 1,
-      controlTarget: 16,
+      controlTarget: 8,
       gradeThresholds: DEFAULT_GRADES
     }
   });
@@ -268,7 +257,7 @@ function createStageThree(): ValidatedStageDefinition {
       ...eastDrainNotches
     ]),
     storageMask: mask([...westSources, ...westGateOne, ...westGateTwo]),
-    maxTurns: 10,
+    maxTurns: 4,
     flowStepsPerTurn: 4,
     timerSeconds: 20,
     pieceDefinitions: [
@@ -284,21 +273,15 @@ function createStageThree(): ValidatedStageDefinition {
       'raise-single',
       'lower-line',
       'raise-l',
-      'lower-single',
-      'raise-line',
-      'lower-line',
-      'raise-single',
-      'raise-l',
-      'lower-single',
-      'raise-line'
+      'lower-single'
     ],
     rainEvents: [
       {
         turn: 2,
         cells: westSources.map((index) => ({ index, amount: 8 }))
       },
-      { turn: 5, cells: [{ index: eastSource, amount: 8 }] },
-      { turn: 9, cells: [{ index: eastSource, amount: 16 }] }
+      { turn: 3, cells: [{ index: eastSource, amount: 8 }] },
+      { turn: 4, cells: [{ index: eastSource, amount: 16 }] }
     ],
     objective: { type: 'protect', target: 3 },
     failure: {
