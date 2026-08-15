@@ -10,6 +10,13 @@ import {
   writeProgress
 } from './application/progress-storage';
 import type { ProgressPlaybackSpeed } from './application/progress-storage';
+import {
+  clearStageSave,
+  createStageSave,
+  readStageSave,
+  writeStageSave
+} from './application/stage-save';
+import type { StageSaveV1 } from './application/stage-save';
 import { StageController } from './application/stage-controller';
 import { isStageUnlocked, stageAccessLabel } from './application/stage-access';
 import { TurnTimer, formatRemainingSeconds, timerDurationMs } from './application/turn-timer';
@@ -41,10 +48,37 @@ if (stage === undefined) throw new Error('built-in stage-01-first-pond is missin
 let progress = readProgress();
 const clearedStageIds = (value: typeof progress): readonly string[] =>
   value.stages.filter((entry) => entry.cleared).map((entry) => entry.stageId);
-const savedStage = getBuiltInStage(progress.lastStageId);
-let currentStage = savedStage !== undefined && isStageUnlocked(savedStage.id, clearedStageIds(progress))
-  ? savedStage
-  : stage;
+let savedStageSave: StageSaveV1 | null = readStageSave();
+
+function stageForSave(save: StageSaveV1): ValidatedStageDefinition | null {
+  const definition = getBuiltInStage(save.replay.header.stageId);
+  if (
+    definition === undefined ||
+    save.replay.header.dataVersion !== definition.dataVersion ||
+    save.replay.header.definitionDigest !== definition.definitionDigest
+  ) return null;
+  try {
+    const restored = new StageController(definition, save.replay.header.timerMode, save.replay);
+    return restored.session.fullStateHash === save.fullStateHash &&
+      restored.session.reversibleGameplayHash === save.reversibleGameplayHash
+      ? definition
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+const resumableStage = savedStageSave === null ? null : stageForSave(savedStageSave);
+if (savedStageSave !== null && resumableStage === null) {
+  clearStageSave();
+  savedStageSave = null;
+}
+const lastSelectedStage = getBuiltInStage(progress.lastStageId);
+let currentStage = resumableStage ?? (
+  lastSelectedStage !== undefined && isStageUnlocked(lastSelectedStage.id, clearedStageIds(progress))
+    ? lastSelectedStage
+    : stage
+);
 
 function stageObjectiveText(definition: ValidatedStageDefinition): string {
   switch (definition.objective.type) {
@@ -104,6 +138,8 @@ appRoot.innerHTML = `
           </select>
         </label>
         <p class="setting-help" id="playback-speed-help"></p>
+        <p class="saved-game-summary" id="saved-game-summary"></p>
+        <button class="start-button" id="resume-saved-game" type="button" hidden>続きから再開</button>
         <button class="start-button" id="start-game" type="button">このステージを始める</button>
       </section>
     </div>
@@ -177,6 +213,8 @@ const gameTitleElement = required<HTMLElement>('#game-title');
 const tutorialSteps = required<HTMLOListElement>('#tutorial-steps');
 const tutorialToggle = required<HTMLButtonElement>('#tutorial-toggle');
 const stageSummaryElement = required<HTMLElement>('#stage-summary');
+const savedGameSummary = required<HTMLElement>('#saved-game-summary');
+const resumeSavedGameButton = required<HTMLButtonElement>('#resume-saved-game');
 const startGameButton = required<HTMLButtonElement>('#start-game');
 const timerModeSelect = required<HTMLSelectElement>('#timer-mode');
 const playbackSpeedSelect = required<HTMLSelectElement>('#playback-speed');
@@ -289,6 +327,41 @@ function updateStagePicker(): void {
   stageSummaryElement.textContent = `${selected.name}: ${stageObjectiveText(selected)}。${timerSummary}${savedStageSummary(selected.id)}`;
 }
 
+function updateSavedGamePrompt(): void {
+  const save = savedStageSave;
+  if (save === null) {
+    savedGameSummary.textContent = '';
+    resumeSavedGameButton.hidden = true;
+    return;
+  }
+  const definition = stageForSave(save);
+  if (definition === null) {
+    clearStageSave();
+    savedStageSave = null;
+    savedGameSummary.textContent = '';
+    resumeSavedGameButton.hidden = true;
+    return;
+  }
+  savedGameSummary.textContent = `${definition.name}に続きがあります（受理済み操作${save.replay.entries.length}件）。`;
+  resumeSavedGameButton.textContent = `${definition.name}を続きから再開`;
+  resumeSavedGameButton.hidden = false;
+}
+
+function persistSessionSave(): void {
+  const save = createStageSave(
+    controller.session.exportReplay(),
+    controller.session.fullStateHash,
+    controller.session.reversibleGameplayHash
+  );
+  if (writeStageSave(save)) {
+    savedStageSave = save;
+  } else {
+    clearStageSave();
+    savedStageSave = null;
+  }
+  updateSavedGamePrompt();
+}
+
 function thinkingDurationMs(): number | null {
   return timerDurationMs(currentStage.timerSeconds, selectedTimerMode);
 }
@@ -360,6 +433,36 @@ function resumeGame(): void {
   render();
 }
 
+function resumeSavedGame(): void {
+  const save = savedStageSave;
+  if (save === null) return;
+  const definition = stageForSave(save);
+  if (definition === null) {
+    clearStageSave();
+    savedStageSave = null;
+    updateSavedGamePrompt();
+    updateStagePicker();
+    return;
+  }
+  playback?.cancel();
+  playback = null;
+  stopTurnTimer();
+  paused = false;
+  pausePanel.hidden = true;
+  currentStage = definition;
+  selectedStageId = definition.id;
+  selectedTimerMode = save.replay.header.timerMode;
+  persistProgress(markTutorialSeen(setLastStageId(progress, definition.id)));
+  updateTutorialVisibility();
+  updateStagePicker();
+  controller = new StageController(definition, selectedTimerMode, save.replay);
+  lastMessage = '保存した続きから再開しました。';
+  startPanel.hidden = true;
+  gameShell.hidden = false;
+  resizeCanvas();
+  startTurnTimer();
+}
+
 function startSelectedStage(): void {
   const selected = getBuiltInStage(selectedStageId);
   if (selected === undefined || !isStageUnlocked(selected.id, clearedStageIds(progress))) {
@@ -372,8 +475,13 @@ function startSelectedStage(): void {
   paused = false;
   pausePanel.hidden = true;
   currentStage = selected;
+  if (savedStageSave?.replay.header.stageId === selected.id) {
+    clearStageSave();
+    savedStageSave = null;
+  }
   persistProgress(markTutorialSeen(setLastStageId(progress, selected.id)));
   updateTutorialVisibility();
+  updateSavedGamePrompt();
   controller = new StageController(currentStage, selectedTimerMode);
   lastMessage = '盤面をタップして仮置きし、内容を確認してから施工確定を押してください。';
   startPanel.hidden = true;
@@ -424,6 +532,13 @@ function failureReasonText(reason: string): string {
 function startPlayback(execution: StageExecution): void {
   stopTurnTimer();
   playback?.cancel();
+  if (controller.view.snapshot.phase === 'awaiting-turn') {
+    persistSessionSave();
+  } else {
+    clearStageSave();
+    savedStageSave = null;
+    updateSavedGamePrompt();
+  }
   playback = new TracePlayback(execution.trace, {
     onFrame: () => render(),
     onComplete: () => {
@@ -438,6 +553,11 @@ function startPlayback(execution: StageExecution): void {
           grade: score.grade
         }));
         updateStagePicker();
+      }
+      if (controller.view.snapshot.phase !== 'awaiting-turn') {
+        clearStageSave();
+        savedStageSave = null;
+        updateSavedGamePrompt();
       }
       render();
     }
@@ -676,6 +796,9 @@ retryButton.addEventListener('click', () => {
   stopTurnTimer();
   paused = false;
   pausePanel.hidden = true;
+  clearStageSave();
+  savedStageSave = null;
+  updateSavedGamePrompt();
   controller = new StageController(currentStage, selectedTimerMode);
   lastMessage = '最初から再挑戦します。';
   startTurnTimer();
@@ -708,6 +831,7 @@ tutorialToggle.addEventListener('click', () => {
 });
 
 startGameButton.addEventListener('click', startSelectedStage);
+resumeSavedGameButton.addEventListener('click', resumeSavedGame);
 stageMenuButton.addEventListener('click', showStagePicker);
 
 timerModeSelect.addEventListener('change', () => {
@@ -757,5 +881,6 @@ if ('ResizeObserver' in window) {
 }
 
 if (!gameShell.hidden) resizeCanvas();
-updateTutorialVisibility();
 updateStagePicker();
+updateSavedGamePrompt();
+updateTutorialVisibility();

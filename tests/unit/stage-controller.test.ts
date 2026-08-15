@@ -91,4 +91,16 @@ describe('StageController', () => {
     const firstFlow = execution?.trace.find((event) => event.phase === 'flow');
     expect(firstFlow?.flowResult).toEqual(preview.nextFlow);
   });
+
+  it('restores a controller from a replay with identical state hashes', () => {
+    const controller = new StageController(stage);
+    controller.setAnchor(8);
+    const execution = controller.confirm();
+    expect(execution?.accepted).toBe(true);
+
+    const restored = new StageController(stage, 'standard', controller.session.exportReplay());
+    expect(restored.session.snapshot).toEqual(controller.session.snapshot);
+    expect(restored.session.fullStateHash).toBe(controller.session.fullStateHash);
+    expect(restored.session.reversibleGameplayHash).toBe(controller.session.reversibleGameplayHash);
+  });
 });

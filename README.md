@@ -28,9 +28,10 @@
 - ステージ3の標準／長め／無制限の思考時間、一時停止、ページ離脱時の自動停止
 - ステージ2クリア後に選べる標準／高速の水流再生速度
 - 設定、チュートリアル既読、最後に選んだステージ、クリア最高記録のlocalStorage保存（v1から自動移行）
+- 受理済み操作列と状態ハッシュによる途中保存・再読込後の続きから再開
 - 確定後の施工・雨・水流を短い脈動で追える基本演出
 
-現在はM3の画面基礎に加え、M4のタイトルから結果までの縦切り、ステージ3の思考時間、一時停止・復帰、設定とクリア記録の保存、確定後の基本演出、水流再生速度の選択、結果画面の改善フィードバック、ステージ解放表示を実装しています。盤面途中の保存、端末上の受入確認、完成版の操作調整、ステージ4～6、GitHub Pages公開は後続工程で扱います。Pagesの設定と公開は、完成後の明示承認まで行いません。
+現在はM3の画面基礎に加え、M4のタイトルから結果までの縦切り、ステージ3の思考時間、一時停止・復帰、設定とクリア記録の保存、確定後の基本演出、水流再生速度の選択、結果画面の改善フィードバック、ステージ解放表示、途中保存・再開を実装しています。端末上の受入確認、完成版の操作調整、ステージ4～6、GitHub Pages公開は後続工程で扱います。Pagesの設定と公開は、完成後の明示承認まで行いません。
 
 ## 開発用コマンド
 
@@ -43,4 +44,4 @@ npm run check
 
 `npm run check`は型検査、単体テスト、ドメイン用ビルド、画面用ビルドの検査を順に実行します。画面は`npm run build:app`でも個別にビルドできます。
 
-詳しい仕様と工程は[企画・技術・実装計画書](docs/PROJECT_PLAN.md)、[M1水流モデル契約](docs/adr/0001-deterministic-water-model.md)、[M2ステージ進行契約](docs/adr/0002-stage-progression.md)、[M3表示・入力契約](docs/adr/0003-presentation-input.md)、[M4ステージ入口契約](docs/adr/0004-stage-entry.md)、[M4タイマー・一時停止契約](docs/adr/0005-timer-pause.md)、[M4進捗保存契約](docs/adr/0006-progress-storage.md)、[M4基本演出契約](docs/adr/0007-playback-feedback.md)、[M4再生速度契約](docs/adr/0008-playback-speed.md)、[M4結果フィードバック契約](docs/adr/0009-result-feedback.md)、[M4ステージ解放契約](docs/adr/0010-stage-access.md)に記録しています。
+詳しい仕様と工程は[企画・技術・実装計画書](docs/PROJECT_PLAN.md)、[M1水流モデル契約](docs/adr/0001-deterministic-water-model.md)、[M2ステージ進行契約](docs/adr/0002-stage-progression.md)、[M3表示・入力契約](docs/adr/0003-presentation-input.md)、[M4ステージ入口契約](docs/adr/0004-stage-entry.md)、[M4タイマー・一時停止契約](docs/adr/0005-timer-pause.md)、[M4進捗保存契約](docs/adr/0006-progress-storage.md)、[M4基本演出契約](docs/adr/0007-playback-feedback.md)、[M4再生速度契約](docs/adr/0008-playback-speed.md)、[M4結果フィードバック契約](docs/adr/0009-result-feedback.md)、[M4ステージ解放契約](docs/adr/0010-stage-access.md)、[M4途中保存・再開契約](docs/adr/0011-stage-save.md)に記録しています。

@@ -13,7 +13,8 @@ import type {
   StageSessionSnapshot,
   StageTurnPreview
 } from '../domain/stage-session';
-import { createStageSession } from '../domain/stage-session';
+import { createStageSession, replayStageSession } from '../domain/stage-session';
+import { parseValidatedStageDefinition } from '../domain/stage-definition';
 
 export interface CandidateCardView {
   readonly slot: CandidateSlot;
@@ -75,10 +76,13 @@ export class StageController {
 
   public constructor(
     definition: ValidatedStageDefinition,
-    timerMode: StageTimerMode = 'standard'
+    timerMode: StageTimerMode = 'standard',
+    replayInput?: unknown
   ) {
-    this.definition = definition;
-    this.sessionValue = createStageSession(definition, timerMode);
+    this.definition = parseValidatedStageDefinition(definition);
+    this.sessionValue = replayInput === undefined
+      ? createStageSession(this.definition, timerMode)
+      : replayStageSession(this.definition, replayInput);
   }
 
   public get session(): StageSession {
