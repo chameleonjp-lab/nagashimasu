@@ -5,6 +5,7 @@ import {
   createStageSave,
   parseStageSave,
   readStageSave,
+  restoreStageSave,
   writeStageSave
 } from '../../src/application/stage-save';
 import type { ProgressStorageLike } from '../../src/application/progress-storage';
@@ -75,5 +76,37 @@ describe('stage save', () => {
     const failingWrite = new FakeStorage();
     failingWrite.failWrite = true;
     expect(writeStageSave(saveFixture(), failingWrite)).toBe(false);
+  });
+
+  it('only restores a save that belongs to the stage and is still playable', () => {
+    const stage = getBuiltInStage('stage-01-first-pond');
+    if (stage === undefined) throw new Error('stage fixture missing');
+    const playable = saveFixture();
+    expect(restoreStageSave(stage, playable)?.snapshot.phase).toBe('awaiting-turn');
+
+    const terminalSession = createStageSession(stage);
+    for (
+      let index = 0;
+      index < stage.maxTurns && terminalSession.snapshot.phase === 'awaiting-turn';
+      index += 1
+    ) {
+      const result = terminalSession.execute({
+        type: 'skip',
+        actionId: terminalSession.snapshot.nextActionId,
+        expectedRevision: terminalSession.snapshot.revision
+      });
+      if (!result.accepted) throw new Error(`terminal fixture rejected at ${index}`);
+    }
+    const terminal = createStageSave(
+      terminalSession.exportReplay(),
+      terminalSession.fullStateHash,
+      terminalSession.reversibleGameplayHash
+    );
+    expect(terminalSession.snapshot.phase).not.toBe('awaiting-turn');
+    expect(restoreStageSave(stage, terminal)).toBeNull();
+
+    const otherStage = getBuiltInStage('stage-02-open-to-sea');
+    if (otherStage === undefined) throw new Error('other stage fixture missing');
+    expect(restoreStageSave(otherStage, playable)).toBeNull();
   });
 });
