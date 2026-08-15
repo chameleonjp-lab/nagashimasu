@@ -303,7 +303,7 @@ describe('built-in stage headless playthroughs', () => {
     ]);
 
     expectClearedAtLastTurn(session, stage);
-    expect(session.snapshot.metrics.safeDrained).toBe(16);
+    expect(session.snapshot.metrics.safeDrained).toBe(8);
     expect(session.snapshot.metrics.work).toBe(1);
     expect(session.snapshot.score).toMatchObject({ total: 100, grade: 'S' });
   });

@@ -75,9 +75,9 @@ describe('built-in M2 stage fixtures', () => {
 
   it('keeps stable content digests for all shipped stage data', () => {
     expect(BUILT_IN_STAGES.map((stage) => stage.definitionDigest)).toEqual([
-      'ec35efb9ef8bac3b',
-      'dec52462f9944723',
-      '17747c7a85db4d14'
+      '2eafc9dd32b1f153',
+      '85f589d7bc9a2f85',
+      '84a428335cc9fd71'
     ]);
   });
 
@@ -94,6 +94,7 @@ describe('built-in M2 stage fixtures', () => {
 
     expect(second.timerSeconds).toBeNull();
     expect(second.objective.type).toBe('safe-drain');
+    expect(second.objective.target).toBe(8);
     expect(new Set(second.pieceDefinitions.map((piece) => piece.delta))).toEqual(
       new Set([-1])
     );
@@ -107,7 +108,17 @@ describe('built-in M2 stage fixtures', () => {
       'raise-line',
       'lower-single'
     ]);
-    expect(third.rainEvents.map((event) => event.turn)).toEqual([2, 5, 9]);
+    expect(third.rainEvents.map((event) => event.turn)).toEqual([2, 3, 4]);
+  });
+
+  it('keeps the prototype turn pacing short enough to avoid empty tail turns', () => {
+    expect(BUILT_IN_STAGES.map((stage) => stage.maxTurns)).toEqual([3, 3, 4]);
+    expect(BUILT_IN_STAGES.map((stage) => stage.rainEvents.map((event) => event.turn))).toEqual([
+      [2, 3],
+      [2, 3],
+      [2, 3, 4]
+    ]);
+    expect(BUILT_IN_STAGES.map((stage) => stage.candidateSequence.length)).toEqual([5, 5, 6]);
   });
 
   it('does not contain a three-candidate identical run', () => {
