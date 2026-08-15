@@ -32,5 +32,6 @@ M4の進捗保存v2は設定やクリア記録だけを保持しており、ペ�
 
 - StageSaveV1のJSON往復、未知キー、hash不一致、壊れた保存、Storage例外を検査する。
 - 1手進めたStageControllerをreplayから再構成し、snapshot、fullStateHash、reversibleGameplayHashが一致することを検査する。
+- 終端状態や別ステージ向けの保存を再開不可として扱うことを検査する。
 - 保存値に壁時計キーや残り時間を含めないことを検査する。
 - 型検査、全単体テスト、ドメイン／画面build・smokeを通す。

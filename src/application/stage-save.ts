@@ -1,5 +1,8 @@
 import { parseStageReplay } from '../domain/stage-replay';
 import type { StageReplayV1 } from '../domain/stage-replay';
+import { replayStageSession } from '../domain/stage-session';
+import type { StageSession } from '../domain/stage-session';
+import type { ValidatedStageDefinition } from '../domain/stage-definition';
 import type { ProgressStorageLike } from './progress-storage';
 
 export const STAGE_SAVE_VERSION = 'nagashimasu-stage-save-v1' as const;
@@ -114,6 +117,31 @@ export function createStageSave(
     fullStateHash,
     reversibleGameplayHash
   });
+}
+
+/**
+ * Reconstructs a save only when it belongs to the supplied stage and still
+ * represents a playable turn. Terminal saves are not resumable.
+ */
+export function restoreStageSave(
+  definition: ValidatedStageDefinition,
+  save: StageSaveV1
+): StageSession | null {
+  if (
+    save.replay.header.stageId !== definition.id ||
+    save.replay.header.dataVersion !== definition.dataVersion ||
+    save.replay.header.definitionDigest !== definition.definitionDigest
+  ) return null;
+  try {
+    const session = replayStageSession(definition, save.replay);
+    if (session.snapshot.phase !== 'awaiting-turn') return null;
+    return session.fullStateHash === save.fullStateHash &&
+      session.reversibleGameplayHash === save.reversibleGameplayHash
+      ? session
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 export function readStageSave(storage?: ProgressStorageLike): StageSaveV1 | null {

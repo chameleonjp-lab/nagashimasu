@@ -14,6 +14,7 @@ import {
   clearStageSave,
   createStageSave,
   readStageSave,
+  restoreStageSave,
   writeStageSave
 } from './application/stage-save';
 import type { StageSaveV1 } from './application/stage-save';
@@ -58,11 +59,7 @@ function stageForSave(save: StageSaveV1): ValidatedStageDefinition | null {
     save.replay.header.definitionDigest !== definition.definitionDigest
   ) return null;
   try {
-    const restored = new StageController(definition, save.replay.header.timerMode, save.replay);
-    return restored.session.fullStateHash === save.fullStateHash &&
-      restored.session.reversibleGameplayHash === save.reversibleGameplayHash
-      ? definition
-      : null;
+    return restoreStageSave(definition, save) === null ? null : definition;
   } catch {
     return null;
   }
