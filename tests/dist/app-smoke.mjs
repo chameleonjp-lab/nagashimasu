@@ -15,5 +15,7 @@ const cssMatch = html.match(/<link[^>]+href="([^"]+\.css)"/u);
 if (cssMatch?.[1] !== undefined) {
   const cssPath = new URL(`../../dist-app/${cssMatch[1].replace(/^\//u, '')}`, import.meta.url);
   if (!existsSync(cssPath)) throw new Error(`app stylesheet is missing: ${cssMatch[1]}`);
+  const css = readFileSync(cssPath, 'utf8');
+  if (!css.includes('repeat(3')) throw new Error('app stylesheet is missing narrow action layout');
 }
 console.log('app smoke ok');
