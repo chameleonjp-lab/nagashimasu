@@ -546,6 +546,10 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .action-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .stage-option {
     min-height: 64px;
   }
