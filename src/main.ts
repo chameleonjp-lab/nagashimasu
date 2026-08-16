@@ -30,6 +30,7 @@ import { createIsometricLayout, hitTestCell } from './presentation/isometric';
 import { PointerController } from './presentation/pointer-controller';
 import { renderIsometricBoard } from './presentation/board-renderer';
 import { buildStageProjection, riskLabel } from './presentation/stage-projection';
+import { buildStagePreviewSummary } from './presentation/stage-preview';
 import {
   resultCauseText,
   resultFirstBreakText,
@@ -177,6 +178,11 @@ appRoot.innerHTML = `
         <button id="skip" type="button">見送り</button>
         <button id="undo" type="button">Undo</button>
       </div>
+      <section class="preview-summary" id="preview-summary" aria-label="施工プレビュー" aria-live="polite" aria-atomic="true" hidden>
+        <p id="preview-construction"></p>
+        <p id="preview-rain"></p>
+        <p id="preview-flow"></p>
+      </section>
       <p class="game-message" id="message" role="status" aria-live="polite"></p>
       <section class="result-panel" id="result-panel" hidden aria-live="polite">
         <h2 id="result-title"></h2>
@@ -224,6 +230,10 @@ const objectiveElement = required<HTMLElement>('#objective');
 const forecastElement = required<HTMLElement>('#forecast');
 const riskElement = required<HTMLElement>('#risk');
 const turnElement = required<HTMLElement>('#turn');
+const previewSummaryElement = required<HTMLElement>('#preview-summary');
+const previewConstructionElement = required<HTMLElement>('#preview-construction');
+const previewRainElement = required<HTMLElement>('#preview-rain');
+const previewFlowElement = required<HTMLElement>('#preview-flow');
 const messageElement = required<HTMLElement>('#message');
 const candidateButtons = [
   required<HTMLButtonElement>('#candidate-a'),
@@ -620,6 +630,7 @@ function render(): void {
     view.forecasts,
     view.preview
   );
+  const previewSummary = buildStagePreviewSummary(view.snapshot, view.preview);
   renderIsometricBoard(canvasContext, view.snapshot.board, currentLayout, {
     selectedCell: view.pending?.anchorIndex ?? null,
     preview: view.preview,
@@ -670,6 +681,15 @@ function render(): void {
     const reasons = selectedRisk.reasons.length > 0 ? selectedRisk.reasons.join('／') : '今の予測では大きな危険はありません';
     riskElement.textContent = `セル${selectedRisk.index + 1} 危険度: ${riskLabel(selectedRisk.level)} — ${reasons}`;
   }
+
+  previewSummaryElement.hidden = previewSummary === null;
+  previewConstructionElement.textContent = previewSummary === null
+    ? ''
+    : `施工: ${previewSummary.construction}`;
+  previewRainElement.textContent = previewSummary === null
+    ? ''
+    : `降雨: ${previewSummary.rain}`;
+  previewFlowElement.textContent = previewSummary?.flow ?? '';
 
   for (const card of view.candidates) {
     const button = candidateButtons[card.slot];

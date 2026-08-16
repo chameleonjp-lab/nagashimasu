@@ -422,6 +422,31 @@ button:disabled {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.preview-summary {
+  display: grid;
+  gap: 2px;
+  border: 1px solid rgba(142, 227, 207, 0.28);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: rgba(16, 58, 63, 0.48);
+}
+
+.preview-summary[hidden] {
+  display: none;
+}
+
+.preview-summary p {
+  margin: 0;
+  color: #d9edf4;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.preview-summary p:first-child {
+  color: #8ee3cf;
+  font-weight: 700;
+}
+
 .candidate-card {
   display: grid;
   gap: 2px;
