@@ -22,6 +22,7 @@ import type { StageSaveV1 } from './application/stage-save';
 import { StageController } from './application/stage-controller';
 import { isStageUnlocked, stageAccessLabel } from './application/stage-access';
 import { TurnTimer, formatRemainingSeconds, timerDurationMs } from './application/turn-timer';
+import { shouldStartTurnTimerAfterVisibility } from './application/visibility-resume';
 import type { CandidateSlot, StageTimerMode } from './domain/stage-replay';
 import { getStageObjectiveProgress } from './domain/stage-session';
 import type { StageExecution, StageTracePhase } from './domain/stage-session';
@@ -890,7 +891,16 @@ document.addEventListener('visibilitychange', () => {
     pauseMessage.textContent = '一時停止中です。再開ボタンを押すと続きます。';
     resumeButton.disabled = false;
     render();
+    return;
   }
+  if (shouldStartTurnTimerAfterVisibility({
+    pageHidden,
+    paused,
+    playbackActive: playback !== null,
+    phase: controller.view.snapshot.phase,
+    timerActive: turnTimer?.active ?? false
+  })) startTurnTimer();
+  render();
 });
 
 window.addEventListener('resize', resizeCanvas, { passive: true });
