@@ -3,6 +3,7 @@ import type { StageReplayV1 } from '../domain/stage-replay';
 import { replayStageSession } from '../domain/stage-session';
 import type { StageSession } from '../domain/stage-session';
 import type { ValidatedStageDefinition } from '../domain/stage-definition';
+import { isStageUnlocked } from './stage-access';
 import type { ProgressStorageLike } from './progress-storage';
 
 export const STAGE_SAVE_VERSION = 'nagashimasu-stage-save-v1' as const;
@@ -21,6 +22,14 @@ export interface StageSaveV1 {
   readonly replay: StageReplayV1;
   readonly fullStateHash: string;
   readonly reversibleGameplayHash: string;
+}
+
+/** Returns whether a saved stage may be resumed from the current clear history. */
+export function isStageSaveResumable(
+  save: StageSaveV1,
+  clearedStageIds: readonly string[]
+): boolean {
+  return isStageUnlocked(save.replay.header.stageId, clearedStageIds);
 }
 
 type PlainRecord = Record<string, unknown>;
