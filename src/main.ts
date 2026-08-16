@@ -149,8 +149,8 @@ appRoot.innerHTML = `
     <header class="game-header">
       <div>
         <h1 class="game-title" id="game-title"></h1>
-        <p class="game-objective" id="objective"></p>
-        <p class="forecast-line" id="forecast"></p>
+        <p class="game-objective" id="objective" aria-live="polite" aria-atomic="true"></p>
+        <p class="forecast-line" id="forecast" aria-live="polite" aria-atomic="true"></p>
         <p class="game-risk" id="risk"></p>
       </div>
       <div class="header-actions">
