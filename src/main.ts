@@ -56,6 +56,7 @@ function stageForSave(save: StageSaveV1): ValidatedStageDefinition | null {
   const definition = getBuiltInStage(save.replay.header.stageId);
   if (
     definition === undefined ||
+    !isStageUnlocked(definition.id, clearedStageIds(progress)) ||
     save.replay.header.dataVersion !== definition.dataVersion ||
     save.replay.header.definitionDigest !== definition.definitionDigest
   ) return null;
