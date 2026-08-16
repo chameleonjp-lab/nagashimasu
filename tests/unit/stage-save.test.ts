@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   STAGE_SAVE_STORAGE_KEY,
   createStageSave,
+  isStageSaveResumable,
   parseStageSave,
   readStageSave,
   restoreStageSave,
@@ -34,8 +35,8 @@ class FakeStorage implements ProgressStorageLike {
   };
 }
 
-function saveFixture() {
-  const stage = getBuiltInStage('stage-01-first-pond');
+function saveFixture(stageId = 'stage-01-first-pond') {
+  const stage = getBuiltInStage(stageId);
   if (stage === undefined) throw new Error('stage fixture missing');
   const session = createStageSession(stage);
   const execution = session.execute({ type: 'skip', actionId: 0, expectedRevision: 0 });
@@ -108,5 +109,11 @@ describe('stage save', () => {
     const otherStage = getBuiltInStage('stage-02-open-to-sea');
     if (otherStage === undefined) throw new Error('other stage fixture missing');
     expect(restoreStageSave(otherStage, playable)).toBeNull();
+  });
+
+  it('does not resume a valid save for a stage that is not unlocked', () => {
+    const stageTwoSave = saveFixture('stage-02-open-to-sea');
+    expect(isStageSaveResumable(stageTwoSave, [])).toBe(false);
+    expect(isStageSaveResumable(stageTwoSave, ['stage-01-first-pond'])).toBe(true);
   });
 });

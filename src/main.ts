@@ -13,6 +13,7 @@ import type { ProgressPlaybackSpeed } from './application/progress-storage';
 import {
   clearStageSave,
   createStageSave,
+  isStageSaveResumable,
   readStageSave,
   restoreStageSave,
   writeStageSave
@@ -56,7 +57,7 @@ function stageForSave(save: StageSaveV1): ValidatedStageDefinition | null {
   const definition = getBuiltInStage(save.replay.header.stageId);
   if (
     definition === undefined ||
-    !isStageUnlocked(definition.id, clearedStageIds(progress)) ||
+    !isStageSaveResumable(save, clearedStageIds(progress)) ||
     save.replay.header.dataVersion !== definition.dataVersion ||
     save.replay.header.definitionDigest !== definition.definitionDigest
   ) return null;
