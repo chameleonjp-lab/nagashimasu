@@ -17,5 +17,7 @@ if (cssMatch?.[1] !== undefined) {
   if (!existsSync(cssPath)) throw new Error(`app stylesheet is missing: ${cssMatch[1]}`);
   const css = readFileSync(cssPath, 'utf8');
   if (!css.includes('repeat(3')) throw new Error('app stylesheet is missing narrow action layout');
+  if (!/\[hidden\]\{display:none!important\}/u.test(css)) throw new Error('app stylesheet does not keep hidden panels out of layout');
+  if (!/overflow:hidden auto/u.test(css)) throw new Error('app stylesheet does not allow vertical page scrolling');
 }
 console.log('app smoke ok');
