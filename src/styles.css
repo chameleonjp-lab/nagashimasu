@@ -125,6 +125,39 @@ button:disabled {
   line-height: 1.6;
 }
 
+.game-purpose {
+  margin: -6px 0 0;
+  color: #ffd166;
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.game-explanation {
+  display: grid;
+  gap: 6px;
+  border-left: 4px solid #8ee3cf;
+  border-radius: 0 12px 12px 0;
+  padding: 10px 12px;
+  background: rgba(16, 58, 63, 0.48);
+}
+
+.game-explanation h2,
+.game-explanation p {
+  margin: 0;
+}
+
+.game-explanation h2 {
+  color: #8ee3cf;
+  font-size: 0.92rem;
+}
+
+.game-explanation p {
+  color: #d9edf4;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
 .tutorial-card,
 .stage-picker {
   display: grid;
@@ -177,7 +210,8 @@ button:disabled {
 .tutorial-card span,
 .stage-option small,
 .stage-summary,
-.saved-game-summary {
+.saved-game-summary,
+.selected-stage-goal {
   color: #b8d9e5;
   font-size: 0.8rem;
   line-height: 1.45;
@@ -326,6 +360,78 @@ button:disabled {
   color: #ffdca0;
 }
 
+.turn-guide {
+  display: grid;
+  gap: 5px;
+  margin-top: 9px;
+  border: 1px solid rgba(255, 209, 102, 0.34);
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: rgba(53, 42, 23, 0.58);
+}
+
+.turn-guide-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.turn-guide h2,
+.turn-guide p,
+.turn-guide-steps {
+  margin: 0;
+}
+
+.turn-guide h2 {
+  color: #ffd166;
+  font-size: 0.88rem;
+}
+
+.turn-guide-heading span {
+  color: #ffe4a3;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.turn-guide-action {
+  color: #fff4d1;
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.turn-guide-detail {
+  color: #d9edf4;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.turn-guide-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.turn-guide-steps li {
+  border: 1px solid rgba(180, 235, 255, 0.16);
+  border-radius: 8px;
+  padding: 5px 6px;
+  color: #8fb9c8;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.turn-guide-steps li.is-current {
+  border-color: #8ee3cf;
+  color: #d7fff0;
+  background: rgba(16, 58, 63, 0.7);
+  font-weight: 800;
+}
+
 .game-turn {
   color: #ffd166;
   font-size: 0.9rem;
@@ -414,6 +520,12 @@ button:disabled {
   display: grid;
   gap: 8px;
   padding: 8px;
+}
+
+.controls-title {
+  margin: 0;
+  color: #ffd166;
+  font-size: 0.9rem;
 }
 
 .construction-help {
@@ -554,6 +666,39 @@ button:disabled {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.action-row button {
+  display: grid;
+  align-content: center;
+  gap: 1px;
+  min-height: 60px;
+  padding: 6px 5px;
+  line-height: 1.2;
+}
+
+.action-row button strong,
+.action-row button small {
+  display: block;
+}
+
+.action-row button strong {
+  font-size: 0.78rem;
+}
+
+.action-row button small {
+  color: #b8d9e5;
+  font-size: 0.64rem;
+  font-weight: 500;
+}
+
+#confirm {
+  border-color: #ffd166;
+  background: rgba(101, 74, 23, 0.9);
+}
+
+#skip {
+  border-color: rgba(142, 227, 207, 0.48);
+}
+
 .preview-summary {
   display: grid;
   gap: 2px;
@@ -577,6 +722,35 @@ button:disabled {
 .preview-summary p:first-child {
   color: #8ee3cf;
   font-weight: 700;
+}
+
+.turn-outcome {
+  display: grid;
+  gap: 3px;
+  border: 1px solid rgba(180, 235, 255, 0.24);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: rgba(16, 43, 58, 0.62);
+}
+
+.turn-outcome[hidden] {
+  display: none;
+}
+
+.turn-outcome h2,
+.turn-outcome p {
+  margin: 0;
+}
+
+.turn-outcome h2 {
+  color: #c8f1ff;
+  font-size: 0.84rem;
+}
+
+.turn-outcome p {
+  color: #d9edf4;
+  font-size: 0.76rem;
+  line-height: 1.4;
 }
 
 .candidate-card {
@@ -660,6 +834,12 @@ button:disabled {
   font-size: 1rem;
 }
 
+.result-panel h3 {
+  margin: 3px 0 0;
+  color: #ffe4a3;
+  font-size: 0.8rem;
+}
+
 .result-panel p {
   color: #d9edf4;
   font-size: 0.82rem;
@@ -701,6 +881,33 @@ button:disabled {
 @media (prefers-reduced-motion: reduce) {
   button:active:not(:disabled) {
     transform: none;
+  }
+}
+
+@media (max-width: 759px) {
+  .game-shell {
+    height: auto;
+    min-height: calc(100svh - max(16px, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+    grid-template-rows: auto auto auto;
+  }
+
+  .game-header {
+    grid-template-columns: 1fr;
+  }
+
+  .header-actions,
+  .header-actions > div {
+    justify-items: start;
+  }
+
+  .game-turn,
+  .game-timer {
+    text-align: left;
+  }
+
+  .game-stage {
+    height: min(58svh, 430px);
+    min-height: 300px;
   }
 }
 

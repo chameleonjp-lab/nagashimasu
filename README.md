@@ -1,6 +1,6 @@
 # ナガシマス
 
-地形を組み替え、降雨を受け止め、必要な場所へ安全に水を流すブラウザ向け治水パズルゲームです。
+雨が降る前に地面を上げ下げして水の流れを変え、ステージの目標を達成するブラウザ向け治水パズルゲームです。
 
 計画書の承認を終え、M1「画面を持たない水流モデル」とM2「施工候補とステージ進行」をマージしました。M3では、M2のルールをそのまま使うCanvas盤面、仮置きプレビュー、タッチ入力の基礎を追加しています。
 
@@ -36,8 +36,9 @@
 - 受理済み操作列と状態ハッシュによる途中保存・再読込後の続きから再開
 - 確定後の施工・雨・水流を短い脈動で追える基本演出
 - 水流traceの移動元・移動先・移動量を追える再生演出
+- 初見プレイ向けのゲーム目的、最初の一手、手番ごとの結果説明
 
-現在はM3の画面基礎に加え、M4のタイトルから結果までの縦切り、ステージ3の思考時間、一時停止・復帰、設定とクリア記録の保存、確定後の基本演出、水流再生速度の選択、結果画面の改善フィードバック、ステージ解放表示、途中保存・再開、施工可能セル案内、セル番号による代替操作、盤面凡例、盤面上の縦スクロール分離、水流移動量を伴う再生を実装しています。GitHub Pagesの公開経路と公開版の導通は確認済みです。iPhone実機の初見受入、独立レビュー、実ブラウザ自動E2E、ステージ4～6は後続工程で扱います。
+現在はM3の画面基礎に加え、M4のタイトルから結果までの縦切り、ステージ3の思考時間、一時停止・復帰、設定とクリア記録の保存、確定後の基本演出、水流再生速度の選択、結果画面の改善フィードバック、ステージ解放表示、途中保存・再開、施工可能セル案内、セル番号による代替操作、盤面凡例、盤面上の縦スクロール分離、水流移動量を伴う再生、初見プレイ向けの目的・操作・結果説明を実装しています。GitHub Pagesの公開経路と公開版の導通は確認済みです。2026-08-29のiPhone実機初見テストでは理解導線が不合格だったため、修正後の再テストと独立レビューが完了するまでステージ4～6は開始しません。
 
 ## 開発用コマンド
 
@@ -50,4 +51,4 @@ npm run check
 
 `npm run check`は型検査、単体テスト、ドメイン用ビルド、画面用ビルドの検査を順に実行します。画面は`npm run build:app`でも個別にビルドできます。
 
-詳しい仕様と工程は[企画・技術・実装計画書](docs/PROJECT_PLAN.md)、[M4ゲート状況](docs/M4_GATE_STATUS.md)、[M4ゲーム性検証プロトコル](docs/M4_PLAYTEST_PROTOCOL.md)、[M1水流モデル契約](docs/adr/0001-deterministic-water-model.md)、[M2ステージ進行契約](docs/adr/0002-stage-progression.md)、[M3表示・入力契約](docs/adr/0003-presentation-input.md)、[M4ステージ入口契約](docs/adr/0004-stage-entry.md)、[M4タイマー・一時停止契約](docs/adr/0005-timer-pause.md)、[M4進捗保存契約](docs/adr/0006-progress-storage.md)、[M4基本演出契約](docs/adr/0007-playback-feedback.md)、[M4再生速度契約](docs/adr/0008-playback-speed.md)、[M4結果フィードバック契約](docs/adr/0009-result-feedback.md)、[M4ステージ解放契約](docs/adr/0010-stage-access.md)、[M4途中保存・再開契約](docs/adr/0011-stage-save.md)、[M4ステージ手数・雨間隔調整契約](docs/adr/0012-stage-pacing.md)、[M4施工プレビュー説明契約](docs/adr/0013-stage-preview-summary.md)、[M4敵対的検証対応契約](docs/adr/0014-adversarial-playability.md)に記録しています。
+詳しい仕様と工程は[企画・技術・実装計画書](docs/PROJECT_PLAN.md)、[M4ゲート状況](docs/M4_GATE_STATUS.md)、[M4ゲーム性検証プロトコル](docs/M4_PLAYTEST_PROTOCOL.md)、[M1水流モデル契約](docs/adr/0001-deterministic-water-model.md)、[M2ステージ進行契約](docs/adr/0002-stage-progression.md)、[M3表示・入力契約](docs/adr/0003-presentation-input.md)、[M4ステージ入口契約](docs/adr/0004-stage-entry.md)、[M4タイマー・一時停止契約](docs/adr/0005-timer-pause.md)、[M4進捗保存契約](docs/adr/0006-progress-storage.md)、[M4基本演出契約](docs/adr/0007-playback-feedback.md)、[M4再生速度契約](docs/adr/0008-playback-speed.md)、[M4結果フィードバック契約](docs/adr/0009-result-feedback.md)、[M4ステージ解放契約](docs/adr/0010-stage-access.md)、[M4途中保存・再開契約](docs/adr/0011-stage-save.md)、[M4ステージ手数・雨間隔調整契約](docs/adr/0012-stage-pacing.md)、[M4施工プレビュー説明契約](docs/adr/0013-stage-preview-summary.md)、[M4敵対的検証対応契約](docs/adr/0014-adversarial-playability.md)、[M4初見プレイの理解導線](docs/adr/0015-first-play-clarity.md)に記録しています。
