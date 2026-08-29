@@ -19,5 +19,6 @@ if (cssMatch?.[1] !== undefined) {
   if (!css.includes('repeat(3')) throw new Error('app stylesheet is missing narrow action layout');
   if (!/\[hidden\]\{display:none!important\}/u.test(css)) throw new Error('app stylesheet does not keep hidden panels out of layout');
   if (!/overflow:hidden auto/u.test(css)) throw new Error('app stylesheet does not allow vertical page scrolling');
+  if (!css.includes('touch-action:pan-y')) throw new Error('app stylesheet does not preserve board vertical pan');
 }
 console.log('app smoke ok');

@@ -46,7 +46,8 @@ M2までで、8×8盤面の水流とステージ進行は画面なしで再現�
 - 別の`pointerId`からのdown／move／upは無視する。
 - 受理したPointerにはpointer captureを設定する。
 - `pointercancel`、画面遷移、入力解除時にはcaptureを解放する。
-- 盤面は`touch-action: none`とし、ブラウザのスクロールや長押しメニューを施工入力と混同しない。
+- 盤面は`touch-action: pan-y`とし、盤面上の縦スワイプはページスクロールへ渡す。タップまたは短いPointer移動は仮置きに使い、スクロールへ移行したPointerは`pointercancel`で仮置きを解除する。横スクロールはページ全体の`overflow-x: hidden`で抑える。
+- タッチPointerではブラウザ既定動作を`preventDefault`しない。マウスPointerだけ既定の選択動作を抑制し、タッチのスクロール開始を妨げない。
 - 主要ボタンは44 CSS px以上とする。
 
 ### 4. Previewの正本
