@@ -37,8 +37,9 @@
 - 確定後の施工・雨・水流を短い脈動で追える基本演出
 - 水流traceの移動元・移動先・移動量を追える再生演出
 - 初見プレイ向けのゲーム目的、最初の一手、手番ごとの結果説明
+- 工事前後の高さ差、青い水塊と水位、雨雲・雨筋、水流の流路と複数の水滴、クリア／流出の盤面判定を視覚化
 
-現在はM3の画面基礎に加え、M4のタイトルから結果までの縦切り、ステージ3の思考時間、一時停止・復帰、設定とクリア記録の保存、確定後の基本演出、水流再生速度の選択、結果画面の改善フィードバック、ステージ解放表示、途中保存・再開、施工可能セル案内、セル番号による代替操作、盤面凡例、盤面上の縦スクロール分離、水流移動量を伴う再生、初見プレイ向けの目的・操作・結果説明を実装しています。GitHub Pagesの公開経路と公開版の導通は確認済みです。2026-08-29のiPhone実機初見テストでは理解導線が不合格だったため、修正後の再テストと独立レビューが完了するまでステージ4～6は開始しません。
+現在はM3の画面基礎に加え、M4のタイトルから結果までの縦切り、ステージ3の思考時間、一時停止・復帰、設定とクリア記録の保存、確定後の基本演出、水流再生速度の選択、結果画面の改善フィードバック、ステージ解放表示、途中保存・再開、施工可能セル案内、セル番号による代替操作、盤面凡例、盤面上の縦スクロール分離、水流移動量を伴う再生、初見プレイ向けの目的・操作・結果説明、工事・雨・水流・結果の視覚フィードバックを実装しています。GitHub Pagesの公開経路と公開版の導通は確認済みです。2026-08-29のiPhone実機初見テストでは理解導線が不合格だったため、修正後の再テストと独立レビューが完了するまでステージ4～6は開始しません。
 
 ## 開発用コマンド
 
@@ -51,4 +52,4 @@ npm run check
 
 `npm run check`は型検査、単体テスト、ドメイン用ビルド、画面用ビルドの検査を順に実行します。画面は`npm run build:app`でも個別にビルドできます。
 
-詳しい仕様と工程は[企画・技術・実装計画書](docs/PROJECT_PLAN.md)、[M4ゲート状況](docs/M4_GATE_STATUS.md)、[M4ゲーム性検証プロトコル](docs/M4_PLAYTEST_PROTOCOL.md)、[M1水流モデル契約](docs/adr/0001-deterministic-water-model.md)、[M2ステージ進行契約](docs/adr/0002-stage-progression.md)、[M3表示・入力契約](docs/adr/0003-presentation-input.md)、[M4ステージ入口契約](docs/adr/0004-stage-entry.md)、[M4タイマー・一時停止契約](docs/adr/0005-timer-pause.md)、[M4進捗保存契約](docs/adr/0006-progress-storage.md)、[M4基本演出契約](docs/adr/0007-playback-feedback.md)、[M4再生速度契約](docs/adr/0008-playback-speed.md)、[M4結果フィードバック契約](docs/adr/0009-result-feedback.md)、[M4ステージ解放契約](docs/adr/0010-stage-access.md)、[M4途中保存・再開契約](docs/adr/0011-stage-save.md)、[M4ステージ手数・雨間隔調整契約](docs/adr/0012-stage-pacing.md)、[M4施工プレビュー説明契約](docs/adr/0013-stage-preview-summary.md)、[M4敵対的検証対応契約](docs/adr/0014-adversarial-playability.md)、[M4初見プレイの理解導線](docs/adr/0015-first-play-clarity.md)に記録しています。
+詳しい仕様と工程は[企画・技術・実装計画書](docs/PROJECT_PLAN.md)、[M4ゲート状況](docs/M4_GATE_STATUS.md)、[M4ゲーム性検証プロトコル](docs/M4_PLAYTEST_PROTOCOL.md)、[M1水流モデル契約](docs/adr/0001-deterministic-water-model.md)、[M2ステージ進行契約](docs/adr/0002-stage-progression.md)、[M3表示・入力契約](docs/adr/0003-presentation-input.md)、[M4ステージ入口契約](docs/adr/0004-stage-entry.md)、[M4タイマー・一時停止契約](docs/adr/0005-timer-pause.md)、[M4進捗保存契約](docs/adr/0006-progress-storage.md)、[M4基本演出契約](docs/adr/0007-playback-feedback.md)、[M4再生速度契約](docs/adr/0008-playback-speed.md)、[M4結果フィードバック契約](docs/adr/0009-result-feedback.md)、[M4ステージ解放契約](docs/adr/0010-stage-access.md)、[M4途中保存・再開契約](docs/adr/0011-stage-save.md)、[M4ステージ手数・雨間隔調整契約](docs/adr/0012-stage-pacing.md)、[M4施工プレビュー説明契約](docs/adr/0013-stage-preview-summary.md)、[M4敵対的検証対応契約](docs/adr/0014-adversarial-playability.md)、[M4初見プレイの理解導線](docs/adr/0015-first-play-clarity.md)、[M4視覚フィードバック契約](docs/adr/0016-visual-feedback.md)に記録しています。

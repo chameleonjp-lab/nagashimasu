@@ -152,6 +152,7 @@ export interface StageTurnPreview {
   readonly placementCells: readonly number[];
   readonly terrainAfterConstruction: readonly number[];
   readonly rainCells: readonly RainEvent[];
+  readonly boardAfterRain: BoardSnapshot;
   readonly nextFlow: FlowStepResult;
   readonly boardAfterNextFlow: BoardSnapshot;
 }
@@ -925,6 +926,7 @@ export function previewStageTurn(
   const rainEvent = definition.rainEvents[state.gameplay.nextRainIndex];
   const rainCells = rainEvent?.turn === nextTurn ? rainEvent.cells : EMPTY_RAIN;
   if (rainCells.length > 0) board.addRain(rainCells);
+  const boardAfterRain = board.snapshot();
   const nextFlow = advanceWaterFlow(board, { config: state.waterRules });
 
   return Object.freeze({
@@ -935,6 +937,7 @@ export function previewStageTurn(
     rainCells: Object.freeze(
       rainCells.map((cell) => Object.freeze({ index: cell.index, amount: cell.amount }))
     ),
+    boardAfterRain,
     nextFlow,
     boardAfterNextFlow: board.snapshot()
   });
