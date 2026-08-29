@@ -36,6 +36,14 @@ function toData(event: PointerEvent): PointerData {
   });
 }
 
+function preventMouseDefault(event: PointerEvent): void {
+  // Touch gestures must keep the browser's vertical pan available. A touch
+  // that becomes a page scroll is followed by pointercancel, which clears the
+  // temporary placement in the application layer. Mouse input has no page
+  // pan to preserve, so suppress its native selection behaviour as before.
+  if (event.pointerType !== 'touch') event.preventDefault();
+}
+
 /**
  * Owns the single active pointer used by the board.
  * Pointer-up only emits an end event; it never confirms a construction.
@@ -92,7 +100,7 @@ export class PointerController {
   public handlePointerDown(event: PointerEvent): boolean {
     if (this.activePointerId !== null) return false;
     this.activePointerId = event.pointerId;
-    event.preventDefault();
+    preventMouseDefault(event);
     this.target.setPointerCapture?.(event.pointerId);
     this.callbacks.onStart?.(toData(event));
     return true;
@@ -100,14 +108,14 @@ export class PointerController {
 
   public handlePointerMove(event: PointerEvent): boolean {
     if (this.activePointerId !== event.pointerId) return false;
-    event.preventDefault();
+    preventMouseDefault(event);
     this.callbacks.onMove?.(toData(event));
     return true;
   }
 
   public handlePointerUp(event: PointerEvent): boolean {
     if (this.activePointerId !== event.pointerId) return false;
-    event.preventDefault();
+    preventMouseDefault(event);
     this.callbacks.onEnd?.(toData(event));
     this.target.releasePointerCapture?.(event.pointerId);
     this.activePointerId = null;
@@ -116,7 +124,7 @@ export class PointerController {
 
   public handlePointerCancel(event: PointerEvent): boolean {
     if (this.activePointerId !== event.pointerId) return false;
-    event.preventDefault();
+    preventMouseDefault(event);
     this.callbacks.onCancel?.(toData(event));
     this.target.releasePointerCapture?.(event.pointerId);
     this.activePointerId = null;

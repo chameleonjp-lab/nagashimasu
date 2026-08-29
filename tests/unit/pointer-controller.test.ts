@@ -27,13 +27,17 @@ class FakeTarget implements PointerEventTarget {
   }
 }
 
-function event(pointerId: number, type = 'touch'): PointerEvent {
+function event(
+  pointerId: number,
+  type = 'touch',
+  onPreventDefault: () => void = () => undefined
+): PointerEvent {
   return {
     pointerId,
     pointerType: type,
     clientX: 10,
     clientY: 20,
-    preventDefault: () => undefined
+    preventDefault: onPreventDefault
   } as PointerEvent;
 }
 
@@ -85,5 +89,28 @@ describe('PointerController', () => {
     expect(target.listeners.size).toBe(0);
     expect(controller.active).toBe(false);
     expect(target.released).toEqual([3]);
+  });
+
+  it('keeps the browser vertical-pan gesture available for touch input', () => {
+    const target = new FakeTarget();
+    let prevented = 0;
+    const controller = new PointerController(target, {});
+
+    controller.handlePointerDown(event(4, 'touch', () => { prevented += 1; }));
+    controller.handlePointerMove(event(4, 'touch', () => { prevented += 1; }));
+    controller.handlePointerCancel(event(4, 'touch', () => { prevented += 1; }));
+
+    expect(prevented).toBe(0);
+  });
+
+  it('suppresses native mouse selection while the pointer is active', () => {
+    const target = new FakeTarget();
+    let prevented = 0;
+    const controller = new PointerController(target, {});
+
+    controller.handlePointerDown(event(5, 'mouse', () => { prevented += 1; }));
+    controller.handlePointerUp(event(5, 'mouse', () => { prevented += 1; }));
+
+    expect(prevented).toBe(2);
   });
 });
