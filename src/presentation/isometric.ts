@@ -172,19 +172,57 @@ function pointInPolygon(pointValue: IsometricPoint, polygon: readonly IsometricP
   return inside;
 }
 
-/** Returns the top-most cell under a canvas-local point, or null outside the board. */
+/**
+ * Returns the cell under a canvas-local point, or null outside the board.
+ *
+ * When preferredCellIndices is supplied, its cells are checked first. This is
+ * important for construction: a low cell can be covered visually by a higher
+ * cell, but its construction marker must remain tappable.
+ */
 export function hitTestCell(
   layout: IsometricLayout,
   snapshot: Pick<BoardSnapshot, 'terrain'>,
   x: number,
-  y: number
+  y: number,
+  preferredCellIndices: readonly number[] = []
 ): number | null {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-  const candidates: IsometricCellGeometry[] = [];
-  for (let index = 0; index < CELL_COUNT; index += 1) {
-    const geometry = getCellGeometry(layout, snapshot, index);
-    if (pointInPolygon(point(x, y), geometry.top)) candidates.push(geometry);
-  }
+
+  const geometries = Array.from(
+    { length: CELL_COUNT },
+    (_, index) => getCellGeometry(layout, snapshot, index)
+  );
+  const preferred = new Set(
+    preferredCellIndices.filter(
+      (index) => Number.isSafeInteger(index) && index >= 0 && index < CELL_COUNT
+    )
+  );
+  const distanceFromCenter = (geometry: IsometricCellGeometry): number =>
+    Math.hypot(geometry.center.x - x, geometry.center.y - y);
+
+  const preferredDirectHits = geometries
+    .filter(
+      (geometry) => preferred.has(geometry.index) && pointInPolygon(point(x, y), geometry.top)
+    )
+    .sort((left, right) => distanceFromCenter(left) - distanceFromCenter(right));
+  const preferredDirectHit = preferredDirectHits[0];
+  if (preferredDirectHit !== undefined) return preferredDirectHit.index;
+
+  // The marker is deliberately larger than the drawn circle so that a finger
+  // can select a low, covered anchor. The nearest marker wins when hit areas
+  // overlap on a narrow phone viewport.
+  const markerHitRadius = Math.max(
+    12,
+    Math.min(22, Math.min(layout.tileWidth, layout.tileHeight) * 0.95)
+  );
+  const preferredMarkerHit = geometries
+    .filter(
+      (geometry) => preferred.has(geometry.index) && distanceFromCenter(geometry) <= markerHitRadius
+    )
+    .sort((left, right) => distanceFromCenter(left) - distanceFromCenter(right))[0];
+  if (preferredMarkerHit !== undefined) return preferredMarkerHit.index;
+
+  const candidates = geometries.filter((geometry) => pointInPolygon(point(x, y), geometry.top));
   candidates.sort((left, right) => {
     if (left.terrain !== right.terrain) return right.terrain - left.terrain;
     const leftDepth = left.row + left.column;
@@ -198,7 +236,7 @@ export function hitTestCell(
   // A small tolerance makes a finger landing on a shared edge choose the
   // nearest visible cell without making distant points select the board.
   const tolerance = Math.max(4, Math.min(layout.tileWidth, layout.tileHeight) * 0.12);
-  const nearby = Array.from({ length: CELL_COUNT }, (_, index) => getCellGeometry(layout, snapshot, index))
+  const nearby = geometries
     .filter((geometry) => {
       const xs = geometry.top.map((current) => current.x);
       const ys = geometry.top.map((current) => current.y);
@@ -210,14 +248,14 @@ export function hitTestCell(
       );
     })
     .sort((left, right) => {
-      const leftDistance = Math.hypot(left.center.x - x, left.center.y - y);
-      const rightDistance = Math.hypot(right.center.x - x, right.center.y - y);
+      const leftDistance = distanceFromCenter(left);
+      const rightDistance = distanceFromCenter(right);
       if (leftDistance !== rightDistance) return leftDistance - rightDistance;
       return right.terrain - left.terrain || left.index - right.index;
     });
   const nearest = nearby[0];
   if (nearest === undefined) return null;
-  const nearestDistance = Math.hypot(nearest.center.x - x, nearest.center.y - y);
+  const nearestDistance = distanceFromCenter(nearest);
   return nearestDistance <= Math.hypot(layout.tileWidth / 2, layout.tileHeight / 2) + tolerance
     ? nearest.index
     : null;

@@ -20,6 +20,7 @@ import {
 } from './application/stage-save';
 import type { StageSaveV1 } from './application/stage-save';
 import { StageController } from './application/stage-controller';
+import type { StageControllerView } from './application/stage-controller';
 import { isStageUnlocked, stageAccessLabel } from './application/stage-access';
 import { TurnTimer, formatRemainingSeconds, timerDurationMs } from './application/turn-timer';
 import { shouldStartTurnTimerAfterVisibility } from './application/visibility-resume';
@@ -170,9 +171,16 @@ appRoot.innerHTML = `
       </section>
     </section>
     <section class="game-controls" aria-label="施工操作">
+      <p class="construction-help" id="construction-help">緑の丸が、選んだ候補を置ける場所です。セル番号は予報と同じ番号です。</p>
       <div class="candidate-row">
-        <button class="candidate-card" id="candidate-a" type="button" aria-pressed="true"></button>
-        <button class="candidate-card" id="candidate-b" type="button" aria-pressed="false"></button>
+        <button class="candidate-card" id="candidate-a" type="button" aria-pressed="true">
+          <span class="candidate-shape" aria-hidden="true"></span>
+          <span class="candidate-copy"><strong></strong><small></small></span>
+        </button>
+        <button class="candidate-card" id="candidate-b" type="button" aria-pressed="false">
+          <span class="candidate-shape" aria-hidden="true"></span>
+          <span class="candidate-copy"><strong></strong><small></small></span>
+        </button>
       </div>
       <div class="action-row">
         <button id="rotate" type="button">回転</button>
@@ -233,6 +241,7 @@ const objectiveElement = required<HTMLElement>('#objective');
 const forecastElement = required<HTMLElement>('#forecast');
 const riskElement = required<HTMLElement>('#risk');
 const turnElement = required<HTMLElement>('#turn');
+const constructionHelpElement = required<HTMLElement>('#construction-help');
 const previewSummaryElement = required<HTMLElement>('#preview-summary');
 const previewConstructionElement = required<HTMLElement>('#preview-construction');
 const previewRainElement = required<HTMLElement>('#preview-rain');
@@ -595,9 +604,20 @@ function localPoint(clientX: number, clientY: number): { readonly x: number; rea
 }
 
 function selectCellAt(clientX: number, clientY: number): void {
-  if (layout === null || playback !== null) return;
+  if (layout === null || playback !== null || paused) return;
+  const view = controller.view;
+  if (view.snapshot.phase !== 'awaiting-turn') return;
   const point = localPoint(clientX, clientY);
-  const cell = hitTestCell(layout, controller.view.snapshot.board, point.x, point.y);
+  const inputSnapshot: Pick<typeof view.snapshot.board, 'terrain'> = {
+    terrain: view.preview?.terrainAfterConstruction ?? view.snapshot.board.terrain
+  };
+  const cell = hitTestCell(
+    layout,
+    inputSnapshot,
+    point.x,
+    point.y,
+    view.legalAnchorIndices
+  );
   if (cell !== null) {
     controller.setAnchor(cell);
     lastMessage = `セル${cell + 1}に仮置きしました。施工確定で手番が進みます。`;
@@ -621,6 +641,79 @@ function reasonText(reason: string | null): string {
   return labels[reason] ?? `操作を受け付けません（${reason}）。`;
 }
 
+interface CandidateOffset {
+  readonly row: number;
+  readonly column: number;
+}
+
+function rotateCandidateOffset(offset: CandidateOffset, rotation: number): CandidateOffset {
+  switch (rotation) {
+    case 1: return { row: offset.column, column: -offset.row };
+    case 2: return { row: -offset.row, column: -offset.column };
+    case 3: return { row: -offset.column, column: offset.row };
+    default: return offset;
+  }
+}
+
+function normalizedCandidateOffsets(
+  offsets: readonly CandidateOffset[],
+  rotation: number
+): readonly CandidateOffset[] {
+  const rotated = offsets.map((offset) => rotateCandidateOffset(offset, rotation));
+  const minimumRow = Math.min(...rotated.map((offset) => offset.row));
+  const minimumColumn = Math.min(...rotated.map((offset) => offset.column));
+  return rotated.map((offset) => Object.freeze({
+    row: offset.row - minimumRow,
+    column: offset.column - minimumColumn
+  }));
+}
+
+function candidateShapeLabel(offsets: readonly CandidateOffset[]): string {
+  if (offsets.length === 1) return '1マス';
+  const rows = new Set(offsets.map((offset) => offset.row));
+  const columns = new Set(offsets.map((offset) => offset.column));
+  if (rows.size === 1 || columns.size === 1) return `直線・${offsets.length}マス`;
+  if (offsets.length === 3) return 'L字・3マス';
+  return `形状・${offsets.length}マス`;
+}
+
+function renderCandidateCard(
+  button: HTMLButtonElement,
+  card: StageControllerView['candidates'][number],
+  rotation: number
+): void {
+  const offsets = normalizedCandidateOffsets(card.offsets, rotation);
+  const maximumRow = Math.max(...offsets.map((offset) => offset.row));
+  const maximumColumn = Math.max(...offsets.map((offset) => offset.column));
+  const occupied = new Set(offsets.map((offset) => `${offset.row},${offset.column}`));
+  const shape = document.createElement('span');
+  shape.className = 'candidate-shape';
+  shape.setAttribute('aria-hidden', 'true');
+  shape.style.gridTemplateColumns = `repeat(${maximumColumn + 1}, 10px)`;
+  for (let row = 0; row <= maximumRow; row += 1) {
+    for (let column = 0; column <= maximumColumn; column += 1) {
+      const cell = document.createElement('span');
+      cell.className = occupied.has(`${row},${column}`)
+        ? 'candidate-shape-cell is-filled'
+        : 'candidate-shape-cell';
+      shape.append(cell);
+    }
+  }
+
+  const copy = document.createElement('span');
+  copy.className = 'candidate-copy';
+  const title = document.createElement('strong');
+  const titleText = `${card.slot === 0 ? '候補A' : '候補B'}: ${card.delta > 0 ? '上げる' : '下げる'}`;
+  title.textContent = titleText;
+  const detail = document.createElement('small');
+  const shapeText = candidateShapeLabel(offsets);
+  detail.textContent = `${shapeText}／向き${rotation + 1}`;
+  copy.append(title, detail);
+  button.replaceChildren(shape, copy);
+  button.title = `${card.pieceId} / token ${card.tokenId}`;
+  button.setAttribute('aria-label', `${titleText}、${shapeText}、向き${rotation + 1}`);
+}
+
 function render(): void {
   const currentLayout = layout;
   if (currentLayout === null) return;
@@ -637,6 +730,7 @@ function render(): void {
   renderIsometricBoard(canvasContext, view.snapshot.board, currentLayout, {
     selectedCell: view.pending?.anchorIndex ?? null,
     preview: view.preview,
+    constructionAnchorCells: playback === null ? view.legalAnchorIndices : [],
     activePlacementCells: playbackFrame?.event?.placementCells ?? [],
     flowResult: playbackFrame?.event?.flowResult ?? null,
     rainCells: playbackFrame?.event?.rainCells ?? [],
@@ -694,10 +788,14 @@ function render(): void {
     : `降雨: ${previewSummary.rain}`;
   previewFlowElement.textContent = previewSummary?.flow ?? '';
 
+  constructionHelpElement.textContent = view.legalAnchorIndices.length > 0
+    ? `緑の丸が、選んだ候補を置ける場所です（${view.legalAnchorIndices.length}か所）。セル番号は予報と同じ番号です。`
+    : '現在、選んだ候補を置ける場所はありません。見送りで水を進められます。';
+
   for (const card of view.candidates) {
     const button = candidateButtons[card.slot];
-    button.textContent = `${card.slot === 0 ? '候補A' : '候補B'}: ${card.delta > 0 ? '上げる' : '下げる'}・${card.cellCount}セル`;
-    button.title = `${card.pieceId} / token ${card.tokenId}`;
+    const rotation = view.pending?.slot === card.slot ? view.pending.rotation : 0;
+    renderCandidateCard(button, card, rotation);
     button.setAttribute('aria-pressed', String(card.selected));
     button.disabled = locked || view.snapshot.phase !== 'awaiting-turn';
   }
