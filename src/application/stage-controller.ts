@@ -5,6 +5,7 @@ import type {
   StageRotation,
   StageTimerMode
 } from '../domain/stage-replay';
+import type { PieceOffset } from '../domain/pieces';
 import type {
   StageActionValidation,
   StageExecution,
@@ -22,6 +23,7 @@ export interface CandidateCardView {
   readonly tokenId: number;
   readonly delta: number;
   readonly cellCount: number;
+  readonly offsets: readonly PieceOffset[];
   readonly selected: boolean;
 }
 
@@ -35,6 +37,7 @@ export interface StageControllerView {
   readonly snapshot: StageSessionSnapshot;
   readonly forecasts: readonly StageRainForecast[];
   readonly candidates: readonly CandidateCardView[];
+  readonly legalAnchorIndices: readonly number[];
   readonly pending: PendingPlacementView | null;
   readonly validation: StageActionValidation | null;
   readonly preview: StageTurnPreview | null;
@@ -60,6 +63,7 @@ function candidateCard(
     tokenId: snapshot.candidateTokenIds[slot] ?? -1,
     delta: piece.delta,
     cellCount: piece.offsets.length,
+    offsets: piece.offsets,
     selected: slot === selectedSlot
   });
 }
@@ -132,6 +136,33 @@ export class StageController {
 
   public cancelPlacement(): void {
     this.pendingValue = null;
+  }
+
+  /**
+   * Returns every anchor that the selected candidate can legally use for the
+   * current board and rotation. The result is presentation evidence only; the
+   * StageSession still validates the action again on confirmation.
+   */
+  public get legalAnchorIndices(): readonly number[] {
+    const snapshot = this.sessionValue.snapshot;
+    if (snapshot.phase !== 'awaiting-turn') return Object.freeze([] as number[]);
+
+    const rotation: StageRotation = this.pendingValue?.slot === this.selectedSlotValue
+      ? this.pendingValue.rotation
+      : 0;
+    const legal: number[] = [];
+    for (let anchorIndex = 0; anchorIndex < snapshot.board.terrain.length; anchorIndex += 1) {
+      const validation = this.sessionValue.validate({
+        type: 'construct',
+        actionId: snapshot.nextActionId,
+        expectedRevision: snapshot.revision,
+        slot: this.selectedSlotValue,
+        anchorIndex,
+        rotation
+      });
+      if (validation.valid) legal.push(anchorIndex);
+    }
+    return Object.freeze(legal);
   }
 
   private pendingAction(): StageAction | null {
@@ -207,6 +238,7 @@ export class StageController {
         candidateCard(this.definition, snapshot, 0, this.selectedSlotValue),
         candidateCard(this.definition, snapshot, 1, this.selectedSlotValue)
       ]),
+      legalAnchorIndices: this.legalAnchorIndices,
       pending: this.pendingValue,
       validation: this.validation,
       preview: this.preview

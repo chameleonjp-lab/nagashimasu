@@ -315,11 +315,11 @@ button:disabled {
 .forecast-line,
 .game-risk {
   margin-top: 3px;
-  overflow: hidden;
   color: #b8d9e5;
   font-size: 0.78rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .game-risk {
@@ -416,6 +416,13 @@ button:disabled {
   padding: 8px;
 }
 
+.construction-help {
+  margin: 0;
+  color: #8fb9c8;
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
 .candidate-row,
 .action-row {
   display: grid;
@@ -454,22 +461,53 @@ button:disabled {
 
 .candidate-card {
   display: grid;
-  gap: 2px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
   min-width: 0;
   text-align: left;
+}
+
+.candidate-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 .candidate-card strong,
 .candidate-card small {
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .candidate-card small {
   color: #b8d9e5;
   font-size: 0.75rem;
   font-weight: 500;
+}
+
+.candidate-shape {
+  display: grid;
+  grid-auto-rows: 10px;
+  gap: 2px;
+  align-content: center;
+  justify-content: center;
+  min-width: 34px;
+  min-height: 34px;
+}
+
+.candidate-shape-cell {
+  width: 10px;
+  height: 10px;
+  border: 1px solid rgba(180, 235, 255, 0.24);
+  border-radius: 2px;
+  background: rgba(7, 21, 33, 0.5);
+}
+
+.candidate-shape-cell.is-filled {
+  border-color: #ffd166;
+  background: #ffd166;
 }
 
 .game-message {

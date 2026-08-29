@@ -8,7 +8,7 @@ if (scriptMatch?.[1] === undefined) throw new Error('app build is missing its mo
 const scriptPath = new URL(`../../dist-app/${scriptMatch[1].replace(/^\//u, '')}`, import.meta.url);
 if (!existsSync(scriptPath)) throw new Error(`app script is missing: ${scriptMatch[1]}`);
 const script = readFileSync(scriptPath, 'utf8');
-for (const marker of ['timer-mode', 'playback-speed', '水流再生速度', '一時停止中', '時間切れのため', 'visibilitychange', 'nagashimasu.progress.v2', 'nagashimasu.stage.v1', '続きから再開', 'localStorage', 'playbackProgress', 'tutorial-toggle', '遊び方を表示', 'prefers-reduced-motion', '施工プレビュー', '次の水流', 'result-hint', '次に改善する1点', '前のステージをクリアすると解放']) {
+for (const marker of ['timer-mode', 'playback-speed', '水流再生速度', '一時停止中', '時間切れのため', 'visibilitychange', 'nagashimasu.progress.v2', 'nagashimasu.stage.v1', '続きから再開', 'localStorage', 'playbackProgress', 'tutorial-toggle', '遊び方を表示', 'prefers-reduced-motion', '施工プレビュー', '次の水流', 'result-hint', '次に改善する1点', '前のステージをクリアすると解放', 'candidate-shape', 'legalAnchorIndices', 'constructionAnchorCells', 'セル番号は予報と同じ番号']) {
   if (!script.includes(marker)) throw new Error(`app bundle is missing timer/pause marker: ${marker}`);
 }
 const cssMatch = html.match(/<link[^>]+href="([^"]+\.css)"/u);

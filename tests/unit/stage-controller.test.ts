@@ -4,7 +4,8 @@ import { StageController } from '../../src/application/stage-controller';
 import { getBuiltInStage } from '../../src/domain/stages';
 
 const stage = getBuiltInStage('stage-01-first-pond');
-if (stage === undefined) throw new Error('stage fixture missing');
+const stageTwo = getBuiltInStage('stage-02-open-to-sea');
+if (stage === undefined || stageTwo === undefined) throw new Error('stage fixture missing');
 
 describe('StageController', () => {
   it('connects candidate selection and one-step preview without changing domain state', () => {
@@ -27,6 +28,13 @@ describe('StageController', () => {
     expect(execution?.accepted).toBe(true);
     expect(controller.session.snapshot.completedTurns).toBe(1);
     expect(controller.view.pending).toBeNull();
+  });
+
+  it('exposes legal anchors for the selected candidate even on a narrow board', () => {
+    const controller = new StageController(stageTwo);
+    controller.selectCandidate(1);
+
+    expect(controller.view.legalAnchorIndices).toEqual([26, 27, 28]);
   });
 
   it('shows an invalid placement without consuming a candidate or turn', () => {

@@ -14,6 +14,7 @@ import { clampPlaybackProgress, playbackPulseForMotion } from './playback-visual
 export interface BoardRenderOptions {
   readonly selectedCell?: number | null;
   readonly preview?: StageTurnPreview | null;
+  readonly constructionAnchorCells?: readonly number[];
   readonly activePlacementCells?: readonly number[];
   readonly flowResult?: FlowStepResult | null;
   readonly rainCells?: readonly RainEvent[];
@@ -136,7 +137,7 @@ function drawArrow(
 
 function flowTarget(
   layout: IsometricLayout,
-  snapshot: BoardSnapshot,
+  snapshot: Pick<BoardSnapshot, 'terrain'>,
   from: number,
   to: number | null,
   direction: Direction
@@ -152,7 +153,7 @@ function flowTarget(
 function drawFlowPreview(
   context: CanvasRenderingContext2D,
   layout: IsometricLayout,
-  snapshot: BoardSnapshot,
+  snapshot: Pick<BoardSnapshot, 'terrain'>,
   result: FlowStepResult
 ): void {
   for (const transfer of result.transfers) {
@@ -215,6 +216,26 @@ function drawForecastOverlay(
     context.fillText(String(forecast.amount), geometry.center.x, geometry.center.y - radius - 4);
   }
   context.setLineDash([]);
+}
+
+function drawConstructionAnchorMarkers(
+  context: CanvasRenderingContext2D,
+  layout: IsometricLayout,
+  snapshot: Pick<BoardSnapshot, 'terrain'>,
+  anchorIndices: readonly number[]
+): void {
+  const radius = Math.max(5, Math.min(8, Math.min(layout.tileWidth, layout.tileHeight) * 0.34));
+  for (const index of anchorIndices) {
+    if (!Number.isSafeInteger(index) || index < 0 || index >= CELL_COUNT) continue;
+    const geometry = getCellGeometry(layout, snapshot, index);
+    context.beginPath();
+    context.arc(geometry.center.x, geometry.center.y, radius, 0, Math.PI * 2);
+    context.fillStyle = 'rgba(49, 214, 151, 0.78)';
+    context.fill();
+    context.strokeStyle = '#d7fff0';
+    context.lineWidth = 1.5;
+    context.stroke();
+  }
 }
 
 /** Draws one deterministic board frame. It contains no game-rule calculations. */
@@ -302,9 +323,9 @@ export function renderIsometricBoard(
       const geometry = getCellGeometry(layout, renderSnapshot, index);
       fillPolygon(context, geometry.top, 'rgba(255, 208, 92, 0.28)', '#ffd166', 2);
     }
-    if (activeFlow === null) drawFlowPreview(context, layout, snapshot, preview.nextFlow);
+    if (activeFlow === null) drawFlowPreview(context, layout, renderSnapshot, preview.nextFlow);
     for (const rain of preview.rainCells) {
-      const geometry = getCellGeometry(layout, snapshot, rain.index);
+      const geometry = getCellGeometry(layout, renderSnapshot, rain.index);
       context.beginPath();
       context.arc(geometry.center.x, geometry.center.y - layout.tileHeight * 0.18, Math.max(3, layout.tileWidth * 0.06), 0, Math.PI * 2);
       context.fillStyle = '#e2f3ff';
@@ -327,6 +348,14 @@ export function renderIsometricBoard(
     context.fillStyle = '#b9e7ff';
     context.fill();
   }
+
+  drawBoardGridLabels(context, layout, renderSnapshot);
+  drawConstructionAnchorMarkers(
+    context,
+    layout,
+    renderSnapshot,
+    options.constructionAnchorCells ?? []
+  );
 }
 
 export function drawBoardGridLabels(

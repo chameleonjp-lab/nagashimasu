@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { BoardState } from '../../src/domain/board';
 import { CELL_COUNT } from '../../src/domain/constants';
+import { getBuiltInStage } from '../../src/domain/stages';
 import {
   createIsometricLayout,
   getCellGeometry,
@@ -50,6 +51,20 @@ describe('isometric layout', () => {
     const layout = createIsometricLayout(800, 600);
     const center = getCellGeometry(layout, snapshot, 0).center;
     expect(hitTestCell(layout, snapshot, center.x, center.y)).toBe(0);
+  });
+
+  it('prioritizes a legal construction marker when a low cell is covered', () => {
+    const stage = getBuiltInStage('stage-02-open-to-sea');
+    if (stage === undefined) throw new Error('stage fixture missing');
+    const snapshot = new BoardState(stage.board).snapshot();
+    const layout = createIsometricLayout(390, 280, { padding: 16 });
+    const coveredAnchor = 28;
+    const center = getCellGeometry(layout, snapshot, coveredAnchor).center;
+
+    expect(hitTestCell(layout, snapshot, center.x, center.y)).not.toBe(coveredAnchor);
+    expect(
+      hitTestCell(layout, snapshot, center.x, center.y, [coveredAnchor])
+    ).toBe(coveredAnchor);
   });
 
   it('uses a stable far-to-near draw order', () => {
