@@ -40,6 +40,10 @@ import {
   resultFirstBreakText,
   resultImprovementHint
 } from './presentation/result-feedback';
+import {
+  buildTurnOutcomeSummary
+} from './presentation/turn-outcome';
+import type { TurnOutcomeSummary } from './presentation/turn-outcome';
 import { TracePlayback, tracePlaybackDurations } from './presentation/trace-playback';
 import type { TracePlaybackFrame } from './presentation/trace-playback';
 import type { IsometricLayout } from './presentation/isometric';
@@ -85,10 +89,30 @@ let currentStage = resumableStage ?? (
 
 function stageObjectiveText(definition: ValidatedStageDefinition): string {
   switch (definition.objective.type) {
-    case 'stored-water': return `水を${definition.objective.target}ためる`;
-    case 'safe-drain': return `安全排水を${definition.objective.target}つくる`;
+    case 'stored-water': return `池に雨水を${definition.objective.target}ためる`;
+    case 'safe-drain': return `安全な出口へ水を${definition.objective.target}流す`;
     case 'protect': return `保護対象を${definition.objective.target}回守る`;
   }
+}
+
+function stageGoalExplanation(definition: ValidatedStageDefinition): string {
+  switch (definition.objective.type) {
+    case 'stored-water':
+      return `池に雨水をため、合計${definition.objective.target}まで集めるとクリアです。`;
+    case 'safe-drain':
+      return `水を安全な出口へ流し、合計${definition.objective.target}以上にするとクリアです。`;
+    case 'protect':
+      return `雨のたびに保護対象を浸水させず、${definition.objective.target}回守るとクリアです。`;
+  }
+}
+
+function stageFirstActionExplanation(
+  definition: ValidatedStageDefinition,
+  selectedCandidate: string
+): string {
+  return definition.id === 'stage-01-first-pond' && selectedCandidate === '候補A'
+    ? '最初は候補Aが選択済みです。緑の丸を1つ押して、まず仮置きしてみてください。'
+    : `${selectedCandidate}を選択中です。緑の丸を1つ押して、まず仮置きしてみてください。`;
 }
 
 function stageNumber(definition: ValidatedStageDefinition): number {
@@ -116,16 +140,22 @@ appRoot.innerHTML = `
     <div class="start-card">
       <p class="eyebrow">水を読む、地形を組む、街を守る</p>
       <h1 id="start-title">ナガシマス</h1>
-      <p class="start-lead">次の雨を見て、2つの施工候補から1つを選びます。盤面をタップして仮置きし、結果を確認してから確定します。</p>
+      <p class="game-purpose">雨水の流れを変えるパズル</p>
+      <p class="start-lead">雨が降る前に地面を上げ下げして、水をためる場所や安全な出口へ流します。ステージごとの目標を達成するとクリアです。</p>
+      <section class="game-explanation" aria-labelledby="game-explanation-title">
+        <h2 id="game-explanation-title">このゲームでやること</h2>
+        <p>候補は、地面をどう変えるかを示す工事パーツです。置いた場所で水の流れが変わります。</p>
+        <p class="selected-stage-goal" id="selected-stage-goal"><strong>選択中のステージ「${currentStage.name}」:</strong> ${stageGoalExplanation(currentStage)}</p>
+      </section>
       <section class="tutorial-card" aria-labelledby="tutorial-title">
         <div class="tutorial-heading">
-          <h2 id="tutorial-title">遊び方</h2>
+          <h2 id="tutorial-title">最初の1手</h2>
           <button class="tutorial-toggle" id="tutorial-toggle" type="button" aria-controls="tutorial-steps" aria-expanded="true">閉じる</button>
         </div>
         <ol id="tutorial-steps">
-          <li><strong>候補を選ぶ</strong><span>上げる・下げる候補を比べます。</span></li>
-          <li><strong>仮置きして読む</strong><span>盤面をタップすると、雨と次の水流を予測します。</span></li>
-          <li><strong>確定する</strong><span>回転や取消を使い、納得してから施工確定を押します。</span></li>
+          <li><strong>候補A/Bを選ぶ</strong><span>地面を上げる・下げる工事から1つ選びます。最初はAが選択済みです。</span></li>
+          <li><strong>緑の丸を1つ押す</strong><span>緑の丸は、その工事を置ける場所です。仮置きなのでまだ確定しません。</span></li>
+          <li><strong>予測を読んで進める</strong><span>「施工確定」でその配置のまま雨を進めます。「見送り」なら工事をせず雨を進めます。</span></li>
         </ol>
       </section>
       <section class="stage-picker" aria-labelledby="stage-picker-title">
@@ -156,9 +186,23 @@ appRoot.innerHTML = `
     <header class="game-header">
       <div>
         <h1 class="game-title" id="game-title"></h1>
+        <p class="game-purpose">雨水の流れを変えるパズル</p>
         <p class="game-objective" id="objective" aria-live="polite" aria-atomic="true"></p>
         <p class="forecast-line" id="forecast" aria-live="polite" aria-atomic="true"></p>
         <p class="game-risk" id="risk"></p>
+        <section class="turn-guide" aria-labelledby="turn-guide-title" aria-live="polite" aria-atomic="true">
+          <div class="turn-guide-heading">
+            <h2 id="turn-guide-title">今すること</h2>
+            <span id="turn-guide-step"></span>
+          </div>
+          <p class="turn-guide-action" id="turn-guide-action"></p>
+          <p class="turn-guide-detail" id="turn-guide-detail"></p>
+          <ol class="turn-guide-steps" aria-hidden="true">
+            <li data-guide-step="1">① 候補を選ぶ</li>
+            <li data-guide-step="2">② 緑の丸を押す</li>
+            <li data-guide-step="3">③ 予測を読んで進める</li>
+          </ol>
+        </section>
       </div>
       <div class="header-actions">
         <div>
@@ -177,6 +221,7 @@ appRoot.innerHTML = `
       </section>
     </section>
     <section class="game-controls" aria-label="施工操作">
+      <h2 class="controls-title">手番の操作</h2>
       <p class="construction-help" id="construction-help">緑の丸が、選んだ候補を置ける場所です。セル番号は予報と同じ番号です。</p>
       <section class="board-legend" aria-labelledby="board-legend-title">
         <h2 id="board-legend-title">盤面の見方</h2>
@@ -190,7 +235,7 @@ appRoot.innerHTML = `
         </ul>
       </section>
       <details class="cell-picker" id="cell-picker">
-        <summary>セル番号で仮置きする</summary>
+        <summary>盤面が押しにくいとき：セル番号で選ぶ</summary>
         <p class="cell-picker-help" id="cell-picker-help">施工可能なセルだけ押せます。キーボードでも選べます。</p>
         <div class="cell-picker-grid" id="cell-picker-grid" aria-label="施工可能なセル番号">${cellPickerMarkup}</div>
       </details>
@@ -205,21 +250,29 @@ appRoot.innerHTML = `
         </button>
       </div>
       <div class="action-row">
-        <button id="rotate" type="button">回転</button>
-        <button id="cancel" type="button">取消</button>
-        <button id="confirm" type="button">施工確定</button>
-        <button id="skip" type="button">見送り</button>
-        <button id="undo" type="button">Undo</button>
+        <button id="rotate" type="button"><strong>向きを変える</strong><small>配置を回転</small></button>
+        <button id="cancel" type="button"><strong>仮置きを取消</strong><small>選び直す</small></button>
+        <button id="confirm" type="button"><strong>施工確定</strong><small>この配置で雨を進める</small></button>
+        <button id="skip" type="button"><strong>見送り</strong><small>工事せず進める</small></button>
+        <button id="undo" type="button"><strong>1手戻す</strong><small>Undo</small></button>
       </div>
       <section class="preview-summary" id="preview-summary" aria-label="施工プレビュー" aria-live="polite" aria-atomic="true" hidden>
         <p id="preview-construction"></p>
         <p id="preview-rain"></p>
         <p id="preview-flow"></p>
       </section>
+      <section class="turn-outcome" id="turn-outcome" hidden aria-live="polite" aria-atomic="true">
+        <h2>直前の手番で起きたこと</h2>
+        <p id="turn-outcome-construction"></p>
+        <p id="turn-outcome-rain"></p>
+        <p id="turn-outcome-flow"></p>
+        <p id="turn-outcome-result"></p>
+      </section>
       <p class="game-message" id="message" role="status" aria-live="polite"></p>
       <section class="result-panel" id="result-panel" hidden aria-live="polite">
         <h2 id="result-title"></h2>
         <p id="result-summary"></p>
+        <h3>なぜこの結果になったか</h3>
         <p id="result-first-break"></p>
         <p id="result-cause"></p>
         <p id="result-score"></p>
@@ -246,6 +299,7 @@ const stageElement = required<HTMLElement>('.game-stage');
 const startPanel = required<HTMLElement>('#start-panel');
 const gameShell = required<HTMLElement>('#game-shell');
 const gameTitleElement = required<HTMLElement>('#game-title');
+const selectedStageGoalElement = required<HTMLElement>('#selected-stage-goal');
 const tutorialSteps = required<HTMLOListElement>('#tutorial-steps');
 const tutorialToggle = required<HTMLButtonElement>('#tutorial-toggle');
 const stageSummaryElement = required<HTMLElement>('#stage-summary');
@@ -262,6 +316,12 @@ const stageOptionButtons = Array.from(
 const objectiveElement = required<HTMLElement>('#objective');
 const forecastElement = required<HTMLElement>('#forecast');
 const riskElement = required<HTMLElement>('#risk');
+const turnGuideStepElement = required<HTMLElement>('#turn-guide-step');
+const turnGuideActionElement = required<HTMLElement>('#turn-guide-action');
+const turnGuideDetailElement = required<HTMLElement>('#turn-guide-detail');
+const turnGuideStepElements = Array.from(
+  appRoot.querySelectorAll<HTMLElement>('[data-guide-step]')
+);
 const turnElement = required<HTMLElement>('#turn');
 const constructionHelpElement = required<HTMLElement>('#construction-help');
 const cellPickerHelpElement = required<HTMLElement>('#cell-picker-help');
@@ -272,6 +332,11 @@ const previewSummaryElement = required<HTMLElement>('#preview-summary');
 const previewConstructionElement = required<HTMLElement>('#preview-construction');
 const previewRainElement = required<HTMLElement>('#preview-rain');
 const previewFlowElement = required<HTMLElement>('#preview-flow');
+const turnOutcomeElement = required<HTMLElement>('#turn-outcome');
+const turnOutcomeConstructionElement = required<HTMLElement>('#turn-outcome-construction');
+const turnOutcomeRainElement = required<HTMLElement>('#turn-outcome-rain');
+const turnOutcomeFlowElement = required<HTMLElement>('#turn-outcome-flow');
+const turnOutcomeResultElement = required<HTMLElement>('#turn-outcome-result');
 const messageElement = required<HTMLElement>('#message');
 const candidateButtons = [
   required<HTMLButtonElement>('#candidate-a'),
@@ -298,7 +363,8 @@ const pauseMessage = required<HTMLElement>('#pause-message');
 const resumeButton = required<HTMLButtonElement>('#resume');
 
 let layout: IsometricLayout | null = null;
-let lastMessage = '盤面をタップして仮置きし、内容を確認してから施工確定を押してください。';
+let lastMessage = 'まず緑の丸を1つ押して仮置きしてください。';
+let lastTurnOutcome: TurnOutcomeSummary | null = null;
 let playback: TracePlayback | null = null;
 let selectedStageId = currentStage.id;
 let selectedTimerMode: StageTimerMode = progress.timerMode;
@@ -335,6 +401,7 @@ function playbackSpeedUnlocked(): boolean {
 function updateStagePicker(): void {
   const selected = getBuiltInStage(selectedStageId);
   if (selected === undefined) return;
+  selectedStageGoalElement.textContent = `選択中のステージ「${selected.name}」: ${stageGoalExplanation(selected)}`;
   const clearedIds = clearedStageIds(progress);
   for (const button of stageOptionButtons) {
     const stageId = button.dataset['stageId'];
@@ -427,7 +494,7 @@ function handleTimeout(): void {
   const execution = controller.timeout();
   if (execution.accepted) {
     lastMessage = '時間切れのため、施工を見送って水を進めます。';
-    startPlayback(execution);
+    startPlayback(execution, '施工なし（時間切れで見送り）');
   } else {
     lastMessage = reasonText(execution.reason);
   }
@@ -497,6 +564,7 @@ function resumeSavedGame(): void {
   currentStage = definition;
   selectedStageId = definition.id;
   selectedTimerMode = save.replay.header.timerMode;
+  lastTurnOutcome = null;
   persistProgress(markTutorialSeen(setLastStageId(progress, definition.id)));
   updateTutorialVisibility();
   updateStagePicker();
@@ -525,10 +593,11 @@ function startSelectedStage(): void {
     savedStageSave = null;
   }
   persistProgress(markTutorialSeen(setLastStageId(progress, selected.id)));
+  lastTurnOutcome = null;
   updateTutorialVisibility();
   updateSavedGamePrompt();
   controller = new StageController(currentStage, selectedTimerMode);
-  lastMessage = '盤面をタップして仮置きし、内容を確認してから施工確定を押してください。';
+  lastMessage = 'まず緑の丸を1つ押して仮置きしてください。';
   startPanel.hidden = true;
   gameShell.hidden = false;
   resizeCanvas();
@@ -565,6 +634,84 @@ function terminalPhaseLabel(phase: 'awaiting-turn' | 'cleared' | 'failed'): stri
   }
 }
 
+function playbackGuideText(
+  phase: StageTracePhase,
+  flowStep: number | null
+): { readonly action: string; readonly detail: string } {
+  switch (phase) {
+    case 'construction':
+      return { action: 'いま起きていること: 地面の高さを変えています。', detail: '選んだ配置を盤面へ反映しています。' };
+    case 'rain':
+      return { action: 'いま起きていること: 予報どおりに雨が降っています。', detail: '雨が降ったセルと雨量を盤面で確認できます。' };
+    case 'flow':
+      return { action: `いま起きていること: 水が移動しています（${flowStep ?? '-'}回目）。`, detail: '水は低い方へ流れ、安全な出口か危険側へ進みます。' };
+    case 'evaluation':
+      return { action: 'いま起きていること: 目標を達成したか確認しています。', detail: '処理が終わるまで少し待ってください。' };
+    case 'undo':
+      return { action: 'いま起きていること: 直前の手を元に戻しています。', detail: '元に戻った盤面を確認してから、次の手を選べます。' };
+  }
+}
+
+function updateTurnGuide(
+  view: StageControllerView,
+  playbackFrame: TracePlaybackFrame | null
+): void {
+  let step = 1;
+  let stepLabel = 'ステップ1 / 3';
+  let action = '';
+  let detail = '';
+
+  if (playbackFrame !== null && playbackFrame.phase !== null) {
+    const playbackText = playbackGuideText(
+      playbackFrame.phase,
+      playbackFrame.event?.flowStep ?? null
+    );
+    stepLabel = '処理中';
+    action = playbackText.action;
+    detail = playbackText.detail;
+  } else if (paused) {
+    stepLabel = '一時停止中';
+    action = '一時停止中です。';
+    detail = '再開ボタンを押すと、残り時間から続けられます。';
+  } else if (view.snapshot.phase !== 'awaiting-turn') {
+    stepLabel = '終了';
+    step = 3;
+    action = view.snapshot.phase === 'cleared'
+      ? 'クリア: ステージの目標を達成しました。'
+      : '失敗: 下の結果欄で、何が起きたか確認してください。';
+    detail = '「もう一度」で同じステージを最初からやり直せます。';
+  } else if (view.pending !== null) {
+    step = 3;
+    stepLabel = 'ステップ3 / 3';
+    action = '仮置き中: 下のプレビューで、施工・雨・次の水流を確認してください。';
+    detail = '納得したら「施工確定」で進みます。やめるなら「仮置きを取消」です。';
+  } else if (view.legalAnchorIndices.length === 0) {
+    step = 3;
+    stepLabel = 'ステップ3 / 3';
+    action = '今は置ける場所がありません。「見送り」で工事をせず進みます。';
+    detail = stageGoalExplanation(currentStage);
+  } else if (view.snapshot.completedTurns === 0) {
+    step = 2;
+    stepLabel = 'ステップ2 / 3';
+    action = '最初の一手: 緑の丸を1つ押してください。';
+    const selectedCandidate = view.candidates.find((candidate) => candidate.selected);
+    const selectedCandidateLabel = selectedCandidate?.slot === 1 ? '候補B' : '候補A';
+    detail = `${stageFirstActionExplanation(currentStage, selectedCandidateLabel)} ${stageGoalExplanation(currentStage)}`;
+  } else {
+    step = 1;
+    stepLabel = 'ステップ1〜2 / 3';
+    action = '候補A/Bから選び、緑の丸を1つ押してください。';
+    detail = stageGoalExplanation(currentStage);
+  }
+
+  turnGuideStepElement.textContent = stepLabel;
+  turnGuideActionElement.textContent = action;
+  turnGuideDetailElement.textContent = detail;
+  for (const element of turnGuideStepElements) {
+    element.classList.toggle('is-current', Number(element.dataset['guideStep']) === step);
+  }
+}
+
 function failureReasonText(reason: string): string {
   const labels: Readonly<Record<string, string>> = {
     'danger-leak': '危険側へ流出しました',
@@ -574,9 +721,14 @@ function failureReasonText(reason: string): string {
   return labels[reason] ?? reason;
 }
 
-function startPlayback(execution: StageExecution): void {
+function startPlayback(execution: StageExecution, construction: string): void {
   stopTurnTimer();
   playback?.cancel();
+  const outcome = buildTurnOutcomeSummary({
+    construction,
+    trace: execution.trace,
+    phase: execution.snapshot.phase
+  });
   if (controller.view.snapshot.phase === 'awaiting-turn') {
     persistSessionSave();
   } else {
@@ -588,6 +740,7 @@ function startPlayback(execution: StageExecution): void {
     onFrame: () => render(),
     onComplete: () => {
       playback = null;
+      lastTurnOutcome = outcome;
       if (!paused && !pageHidden && controller.view.snapshot.phase === 'awaiting-turn') {
         startTurnTimer();
       }
@@ -793,7 +946,7 @@ function render(): void {
   const phaseText = playbackFrame?.phase === null || playbackFrame?.phase === undefined
     ? terminalPhaseLabel(view.snapshot.phase)
     : phaseLabel(playbackFrame.phase, playbackFrame.event?.flowStep ?? null);
-  objectiveElement.textContent = `目的: ${progress.value} / ${progress.target}（${phaseText}）`;
+  objectiveElement.textContent = `目標: ${stageObjectiveText(currentStage)}（進捗 ${progress.value} / ${progress.target}・${phaseText}）`;
   const forecastText = view.forecasts.length === 0
     ? '雨予報: なし'
     : `雨予報: ${projection.forecasts.map((forecast) => `あと${forecast.turnsUntil}手・${forecast.totalAmount}・${forecast.cells.map((cell) => `セル${cell.index + 1}`).join('／')}`).join('、')}`;
@@ -816,6 +969,7 @@ function render(): void {
     'timer-warning',
     !paused && playback === null && remaining !== null && remaining <= 3_000
   );
+  updateTurnGuide(view, playbackFrame);
 
   const selectedRisk = view.pending === null
     ? null
@@ -864,6 +1018,13 @@ function render(): void {
     : phaseLabel(playbackFrame.phase ?? 'evaluation', playbackFrame.event?.flowStep ?? null);
 
   resultPanel.hidden = locked || !terminal;
+  turnOutcomeElement.hidden = locked || lastTurnOutcome === null;
+  if (lastTurnOutcome !== null) {
+    turnOutcomeConstructionElement.textContent = `工事: ${lastTurnOutcome.construction}`;
+    turnOutcomeRainElement.textContent = lastTurnOutcome.rain;
+    turnOutcomeFlowElement.textContent = lastTurnOutcome.flow;
+    turnOutcomeResultElement.textContent = lastTurnOutcome.result;
+  }
   if (terminal) {
     const resultInput = {
       phase: view.snapshot.phase,
@@ -873,8 +1034,8 @@ function render(): void {
     } as const;
     resultTitle.textContent = view.snapshot.phase === 'cleared' ? 'クリア' : '失敗';
     resultSummary.textContent = view.snapshot.phase === 'cleared'
-      ? `目的 ${progress.value} / ${progress.target} を達成しました。`
-      : '今回の手番では目標を守れませんでした。';
+      ? `目標「${stageObjectiveText(currentStage)}」を達成しました（${progress.value} / ${progress.target}）。`
+      : `目標「${stageObjectiveText(currentStage)}」を達成できませんでした。`;
     const score = view.snapshot.score;
     resultFirstBreak.textContent = resultFirstBreakText(resultInput);
     resultCause.textContent = resultCauseText(resultInput);
@@ -946,12 +1107,14 @@ cancelButton.addEventListener('click', () => {
 
 confirmButton.addEventListener('click', () => {
   if (playback !== null || paused) return;
+  const beforeView = controller.view;
+  const previewSummary = buildStagePreviewSummary(beforeView.snapshot, beforeView.preview);
   const execution = controller.confirm();
   if (execution === null) {
     lastMessage = '先に盤面へ候補を仮置きしてください。';
   } else if (execution.accepted) {
     lastMessage = '施工を確定しました。雨と水流を計算しました。';
-    startPlayback(execution);
+    startPlayback(execution, previewSummary?.construction ?? '施工あり');
   } else {
     lastMessage = reasonText(execution.reason);
   }
@@ -962,7 +1125,7 @@ skipButton.addEventListener('click', () => {
   if (playback !== null || paused) return;
   const execution = controller.skip();
   lastMessage = execution.accepted ? '施工を見送りました。' : reasonText(execution.reason);
-  if (execution.accepted) startPlayback(execution);
+  if (execution.accepted) startPlayback(execution, '施工なし（見送り）');
   render();
 });
 
@@ -970,7 +1133,7 @@ undoButton.addEventListener('click', () => {
   if (playback !== null || paused) return;
   const execution = controller.undo();
   lastMessage = execution.accepted ? '直前の手を取り消しました。' : reasonText(execution.reason);
-  if (execution.accepted) startPlayback(execution);
+  if (execution.accepted) startPlayback(execution, '直前の手を元に戻す');
   render();
 });
 
@@ -983,7 +1146,8 @@ retryButton.addEventListener('click', () => {
   savedStageSave = null;
   updateSavedGamePrompt();
   controller = new StageController(currentStage, selectedTimerMode);
-  lastMessage = '最初から再挑戦します。';
+  lastTurnOutcome = null;
+  lastMessage = 'まず緑の丸を1つ押して仮置きしてください。';
   startTurnTimer();
   render();
 });
