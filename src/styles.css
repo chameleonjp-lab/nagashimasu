@@ -423,6 +423,126 @@ button:disabled {
   line-height: 1.4;
 }
 
+.board-legend {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(180, 235, 255, 0.14);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: rgba(16, 43, 58, 0.42);
+}
+
+.board-legend h2 {
+  margin: 0;
+  color: #ffd166;
+  font-size: 0.82rem;
+}
+
+.legend-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #c6eaf6;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.legend-symbol {
+  display: inline-block;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.legend-anchor {
+  border: 2px solid #d7fff0;
+  border-radius: 50%;
+  background: rgba(49, 214, 151, 0.78);
+}
+
+.legend-forecast {
+  border: 2px dashed #c8f1ff;
+  border-radius: 50%;
+}
+
+.legend-flow {
+  border: 2px solid #f4fbff;
+  border-radius: 50%;
+  background: #b9e7ff;
+}
+
+.legend-safe {
+  height: 0;
+  border-top: 3px solid #8ee3cf;
+}
+
+.legend-danger {
+  height: 0;
+  border-top: 3px solid #ff6b6b;
+}
+
+.legend-risk {
+  border: 2px solid #ffd166;
+  border-radius: 4px;
+  background: linear-gradient(90deg, rgba(255, 209, 102, 0.4), rgba(255, 92, 92, 0.72));
+}
+
+.cell-picker {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(180, 235, 255, 0.14);
+  border-radius: 12px;
+  padding: 0 8px 8px;
+  background: rgba(16, 43, 58, 0.42);
+}
+
+.cell-picker summary {
+  min-height: 44px;
+  padding: 10px 2px;
+  color: #8ee3cf;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.cell-picker-help {
+  margin: 0;
+  color: #b8d9e5;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.cell-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.cell-picker-cell {
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 2px;
+  border-radius: 8px;
+  color: #7899a7;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.cell-picker-cell.is-legal {
+  border-color: rgba(49, 214, 151, 0.72);
+  color: #d7fff0;
+}
+
 .candidate-row,
 .action-row {
   display: grid;

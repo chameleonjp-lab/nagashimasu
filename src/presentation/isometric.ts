@@ -44,6 +44,7 @@ export interface IsometricLayoutOptions {
 
 const DEFAULT_PADDING = 12;
 const DEFAULT_TILE_ASPECT = 0.52;
+export const CONSTRUCTION_TAP_TARGET_PX = 44;
 
 function assertViewport(value: number, label: string): void {
   if (!Number.isFinite(value) || value <= 0) {
@@ -211,10 +212,7 @@ export function hitTestCell(
   // The marker is deliberately larger than the drawn circle so that a finger
   // can select a low, covered anchor. The nearest marker wins when hit areas
   // overlap on a narrow phone viewport.
-  const markerHitRadius = Math.max(
-    12,
-    Math.min(22, Math.min(layout.tileWidth, layout.tileHeight) * 0.95)
-  );
+  const markerHitRadius = CONSTRUCTION_TAP_TARGET_PX / 2;
   const preferredMarkerHit = geometries
     .filter(
       (geometry) => preferred.has(geometry.index) && distanceFromCenter(geometry) <= markerHitRadius
