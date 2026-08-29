@@ -202,6 +202,26 @@ export class StageController {
     return action === null ? null : this.execute(action);
   }
 
+  private previewNonConstruction(
+    type: 'skip' | 'timeout'
+  ): StageTurnPreview | null {
+    const snapshot = this.sessionValue.snapshot;
+    const result = this.sessionValue.preview({
+      type,
+      actionId: snapshot.nextActionId,
+      expectedRevision: snapshot.revision
+    });
+    return 'nextFlow' in result ? result : null;
+  }
+
+  public previewSkip(): StageTurnPreview | null {
+    return this.previewNonConstruction('skip');
+  }
+
+  public previewTimeout(): StageTurnPreview | null {
+    return this.previewNonConstruction('timeout');
+  }
+
   public skip(): StageExecution {
     const snapshot = this.sessionValue.snapshot;
     return this.execute({

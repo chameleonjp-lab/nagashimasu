@@ -27,12 +27,18 @@ import { shouldStartTurnTimerAfterVisibility } from './application/visibility-re
 import { CELL_COUNT } from './domain/constants';
 import type { CandidateSlot, StageTimerMode } from './domain/stage-replay';
 import { getStageObjectiveProgress } from './domain/stage-session';
-import type { StageExecution, StageTracePhase } from './domain/stage-session';
+import type {
+  StageExecution,
+  StageTracePhase,
+  StageTurnPreview
+} from './domain/stage-session';
+import type { BoardSnapshot } from './domain/types';
 import { BUILT_IN_STAGES, getBuiltInStage } from './domain/stages';
 import type { ValidatedStageDefinition } from './domain/stage-definition';
 import { createIsometricLayout, hitTestCell } from './presentation/isometric';
 import { PointerController } from './presentation/pointer-controller';
 import { renderIsometricBoard } from './presentation/board-renderer';
+import type { ConstructionVisual } from './presentation/board-renderer';
 import { buildStageProjection, riskLabel } from './presentation/stage-projection';
 import { buildStagePreviewSummary } from './presentation/stage-preview';
 import {
@@ -142,6 +148,13 @@ appRoot.innerHTML = `
       <h1 id="start-title">ナガシマス</h1>
       <p class="game-purpose">雨水の流れを変えるパズル</p>
       <p class="start-lead">雨が降る前に地面を上げ下げして、水をためる場所や安全な出口へ流します。ステージごとの目標を達成するとクリアです。</p>
+      <section class="game-loop-visual" aria-label="ゲームの流れ">
+        <div class="game-loop-step"><span class="loop-icon loop-terrain" aria-hidden="true">▰</span><strong>地形を作る</strong><small>上げる・下げる</small></div>
+        <span class="loop-arrow" aria-hidden="true">→</span>
+        <div class="game-loop-step"><span class="loop-icon loop-rain" aria-hidden="true">☁</span><strong>雨が降る</strong><small>予報を読む</small></div>
+        <span class="loop-arrow" aria-hidden="true">→</span>
+        <div class="game-loop-step"><span class="loop-icon loop-water" aria-hidden="true">≈</span><strong>水を守る</strong><small>ためる・流す</small></div>
+      </section>
       <section class="game-explanation" aria-labelledby="game-explanation-title">
         <h2 id="game-explanation-title">このゲームでやること</h2>
         <p>候補は、地面をどう変えるかを示す工事パーツです。置いた場所で水の流れが変わります。</p>
@@ -188,6 +201,10 @@ appRoot.innerHTML = `
         <h1 class="game-title" id="game-title"></h1>
         <p class="game-purpose">雨水の流れを変えるパズル</p>
         <p class="game-objective" id="objective" aria-live="polite" aria-atomic="true"></p>
+        <section class="objective-visual" aria-label="目標の進捗">
+          <div class="objective-visual-heading"><span id="objective-progress-title">目標進捗</span><strong id="objective-progress-label">0 / 0</strong></div>
+          <div class="objective-progress-track" id="objective-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-label="目標進捗"><span id="objective-progress-bar"></span></div>
+        </section>
         <p class="forecast-line" id="forecast" aria-live="polite" aria-atomic="true"></p>
         <p class="game-risk" id="risk"></p>
         <section class="turn-guide" aria-labelledby="turn-guide-title" aria-live="polite" aria-atomic="true">
@@ -202,6 +219,12 @@ appRoot.innerHTML = `
             <li data-guide-step="2">② 緑の丸を押す</li>
             <li data-guide-step="3">③ 予測を読んで進める</li>
           </ol>
+        </section>
+        <section class="phase-timeline" aria-label="手番の流れ">
+          <div class="phase-step is-current" data-phase-ui="construction"><span class="phase-icon" aria-hidden="true">▰</span><strong>工事</strong><small>地形を変える</small></div>
+          <div class="phase-step" data-phase-ui="rain"><span class="phase-icon" aria-hidden="true">☁</span><strong>雨</strong><small>雨が落ちる</small></div>
+          <div class="phase-step" data-phase-ui="flow"><span class="phase-icon" aria-hidden="true">≈</span><strong>水流</strong><small>水が移動する</small></div>
+          <div class="phase-step" data-phase-ui="evaluation"><span class="phase-icon" aria-hidden="true">✓</span><strong>結果</strong><small>目標を判定</small></div>
         </section>
       </div>
       <div class="header-actions">
@@ -228,7 +251,8 @@ appRoot.innerHTML = `
         <ul class="legend-list">
           <li><span class="legend-symbol legend-anchor" aria-hidden="true"></span><span>緑の丸：選んだ候補を置けるセル</span></li>
           <li><span class="legend-symbol legend-forecast" aria-hidden="true"></span><span>点線の輪：予報の雨（数字は雨量）</span></li>
-          <li><span class="legend-symbol legend-flow" aria-hidden="true"></span><span>水色の点：再生中に動く水（数字は移動量）</span></li>
+          <li><span class="legend-symbol legend-flow" aria-hidden="true"></span><span>青い水面：そのセルにたまった水（数字は水量）</span></li>
+          <li><span class="legend-symbol legend-flow-particle" aria-hidden="true"></span><span>水色の粒：再生中に移動する水</span></li>
           <li><span class="legend-symbol legend-safe" aria-hidden="true"></span><span>緑の辺：安全な排水方向</span></li>
           <li><span class="legend-symbol legend-danger" aria-hidden="true"></span><span>赤い辺：危険側へ流れる方向</span></li>
           <li><span class="legend-symbol legend-risk" aria-hidden="true"></span><span>黄〜赤の塗り：雨と水流の危険度</span></li>
@@ -314,6 +338,10 @@ const stageOptionButtons = Array.from(
   appRoot.querySelectorAll<HTMLButtonElement>('.stage-option')
 );
 const objectiveElement = required<HTMLElement>('#objective');
+const objectiveProgressTitleElement = required<HTMLElement>('#objective-progress-title');
+const objectiveProgressLabelElement = required<HTMLElement>('#objective-progress-label');
+const objectiveProgressBarElement = required<HTMLElement>('#objective-progress-bar');
+const objectiveProgressTrackElement = required<HTMLElement>('#objective-progress-track');
 const forecastElement = required<HTMLElement>('#forecast');
 const riskElement = required<HTMLElement>('#risk');
 const turnGuideStepElement = required<HTMLElement>('#turn-guide-step');
@@ -321,6 +349,9 @@ const turnGuideActionElement = required<HTMLElement>('#turn-guide-action');
 const turnGuideDetailElement = required<HTMLElement>('#turn-guide-detail');
 const turnGuideStepElements = Array.from(
   appRoot.querySelectorAll<HTMLElement>('[data-guide-step]')
+);
+const phaseStepElements = Array.from(
+  appRoot.querySelectorAll<HTMLElement>('[data-phase-ui]')
 );
 const turnElement = required<HTMLElement>('#turn');
 const constructionHelpElement = required<HTMLElement>('#construction-help');
@@ -365,6 +396,12 @@ const resumeButton = required<HTMLButtonElement>('#resume');
 let layout: IsometricLayout | null = null;
 let lastMessage = 'まず緑の丸を1つ押して仮置きしてください。';
 let lastTurnOutcome: TurnOutcomeSummary | null = null;
+let activeConstructionVisual: ConstructionVisual | null = null;
+interface TurnPlaybackVisual {
+  readonly beforeBoard: BoardSnapshot;
+  readonly afterRainBoard: BoardSnapshot | null;
+}
+let activeTurnPlaybackVisual: TurnPlaybackVisual | null = null;
 let playback: TracePlayback | null = null;
 let selectedStageId = currentStage.id;
 let selectedTimerMode: StageTimerMode = progress.timerMode;
@@ -491,10 +528,17 @@ function handleTimeout(): void {
     controller.view.snapshot.phase !== 'awaiting-turn'
   ) return;
   stopTurnTimer();
+  const beforeView = controller.view;
+  const turnPreview = controller.previewTimeout();
   const execution = controller.timeout();
   if (execution.accepted) {
     lastMessage = '時間切れのため、施工を見送って水を進めます。';
-    startPlayback(execution, '施工なし（時間切れで見送り）');
+    startPlayback(
+      execution,
+      '施工なし（時間切れで見送り）',
+      null,
+      turnPlaybackVisualForView(beforeView, turnPreview)
+    );
   } else {
     lastMessage = reasonText(execution.reason);
   }
@@ -558,6 +602,8 @@ function resumeSavedGame(): void {
   }
   playback?.cancel();
   playback = null;
+  activeConstructionVisual = null;
+  activeTurnPlaybackVisual = null;
   stopTurnTimer();
   paused = false;
   pausePanel.hidden = true;
@@ -584,6 +630,8 @@ function startSelectedStage(): void {
   }
   playback?.cancel();
   playback = null;
+  activeConstructionVisual = null;
+  activeTurnPlaybackVisual = null;
   stopTurnTimer();
   paused = false;
   pausePanel.hidden = true;
@@ -631,6 +679,66 @@ function terminalPhaseLabel(phase: 'awaiting-turn' | 'cleared' | 'failed'): stri
     case 'awaiting-turn': return '継続中';
     case 'cleared': return 'クリア';
     case 'failed': return '失敗';
+  }
+}
+
+function objectiveProgressTitle(definition: ValidatedStageDefinition): string {
+  switch (definition.objective.type) {
+    case 'stored-water': return '池にためた水';
+    case 'safe-drain': return '安全に排水した水';
+    case 'protect': return '守れた雨';
+  }
+}
+
+function constructionVisualForView(view: StageControllerView): ConstructionVisual | null {
+  const preview = view.preview;
+  if (
+    preview === null ||
+    !preview.valid ||
+    preview.action.type !== 'construct' ||
+    preview.placementCells.length === 0
+  ) return null;
+  const firstCell = preview.placementCells[0];
+  if (firstCell === undefined) return null;
+  return Object.freeze({
+    placementCells: preview.placementCells,
+    terrainBefore: view.snapshot.board.terrain,
+    terrainAfter: preview.terrainAfterConstruction,
+    delta: (preview.terrainAfterConstruction[firstCell] ?? 0) -
+      (view.snapshot.board.terrain[firstCell] ?? 0)
+  });
+}
+
+function turnPlaybackVisualForView(
+  view: StageControllerView,
+  preview: StageTurnPreview | null
+): TurnPlaybackVisual {
+  return Object.freeze({
+    beforeBoard: view.snapshot.board,
+    afterRainBoard: preview?.boardAfterRain ?? null
+  });
+}
+
+function updatePhaseTimeline(
+  view: StageControllerView,
+  playbackFrame: TracePlaybackFrame | null
+): void {
+  const rawPhase = playbackFrame?.phase ?? (
+    view.snapshot.phase === 'awaiting-turn' ? 'construction' : 'evaluation'
+  );
+  const activePhase = rawPhase === 'undo' ? 'construction' : rawPhase;
+  for (const element of phaseStepElements) {
+    const phase = element.dataset['phaseUi'];
+    const isCurrent = phase === activePhase;
+    element.classList.toggle('is-current', isCurrent);
+    element.classList.toggle(
+      'is-complete',
+      playbackFrame !== null && phase !== undefined &&
+        ['construction', 'rain', 'flow', 'evaluation'].indexOf(phase) <
+          ['construction', 'rain', 'flow', 'evaluation'].indexOf(activePhase)
+    );
+    if (isCurrent) element.setAttribute('aria-current', 'step');
+    else element.removeAttribute('aria-current');
   }
 }
 
@@ -721,9 +829,44 @@ function failureReasonText(reason: string): string {
   return labels[reason] ?? reason;
 }
 
-function startPlayback(execution: StageExecution, construction: string): void {
+function resultVisualText(view: StageControllerView): string {
+  if (view.snapshot.phase === 'cleared') return 'クリア：目標を達成しました';
+  if (view.snapshot.failureReasons.includes('protected-overflow')) {
+    return '失敗：保護対象が浸水しました';
+  }
+  if (view.snapshot.failureReasons.includes('danger-leak')) {
+    return '失敗：水が危険側へ流れました';
+  }
+  return '失敗：目標を達成できませんでした';
+}
+
+function boardForPlayback(
+  view: StageControllerView,
+  playbackFrame: TracePlaybackFrame | null
+): BoardSnapshot {
+  const visual = activeTurnPlaybackVisual;
+  if (visual === null || playbackFrame === null) return view.snapshot.board;
+  switch (playbackFrame.phase) {
+    case 'construction': return visual.beforeBoard;
+    case 'rain': return visual.afterRainBoard ?? visual.beforeBoard;
+    case 'flow':
+    case 'evaluation':
+    case 'undo':
+      return view.snapshot.board;
+  }
+  return view.snapshot.board;
+}
+
+function startPlayback(
+  execution: StageExecution,
+  construction: string,
+  constructionVisual: ConstructionVisual | null = null,
+  turnPlaybackVisual: TurnPlaybackVisual | null = null
+): void {
   stopTurnTimer();
   playback?.cancel();
+  activeConstructionVisual = constructionVisual;
+  activeTurnPlaybackVisual = turnPlaybackVisual;
   const outcome = buildTurnOutcomeSummary({
     construction,
     trace: execution.trace,
@@ -740,6 +883,8 @@ function startPlayback(execution: StageExecution, construction: string): void {
     onFrame: () => render(),
     onComplete: () => {
       playback = null;
+      activeConstructionVisual = null;
+      activeTurnPlaybackVisual = null;
       lastTurnOutcome = outcome;
       if (!paused && !pageHidden && controller.view.snapshot.phase === 'awaiting-turn') {
         startTurnTimer();
@@ -921,6 +1066,12 @@ function render(): void {
   const view = controller.view;
   const playbackFrame: TracePlaybackFrame | null = playback?.frame ?? null;
   const locked = playback !== null || paused;
+  const board = boardForPlayback(view, playbackFrame);
+  const objectiveProgress = getStageObjectiveProgress(
+    currentStage,
+    board,
+    view.snapshot.metrics
+  );
   const projection = buildStageProjection(
     currentStage,
     view.snapshot,
@@ -928,7 +1079,7 @@ function render(): void {
     view.preview
   );
   const previewSummary = buildStagePreviewSummary(view.snapshot, view.preview);
-  renderIsometricBoard(canvasContext, view.snapshot.board, currentLayout, {
+  renderIsometricBoard(canvasContext, board, currentLayout, {
     selectedCell: view.pending?.anchorIndex ?? null,
     preview: view.preview,
     constructionAnchorCells: playback === null ? view.legalAnchorIndices : [],
@@ -938,15 +1089,36 @@ function render(): void {
     forecastCells: projection.forecastCells,
     riskCells: projection.risks,
     playbackProgress: playbackFrame?.progress ?? null,
+    phase: playbackFrame?.phase ?? null,
+    constructionVisual: activeConstructionVisual,
+    resultPhase: playback === null &&
+      (view.snapshot.phase === 'cleared' || view.snapshot.phase === 'failed')
+      ? view.snapshot.phase
+      : null,
+    resultText: resultVisualText(view),
+    objectiveProgress,
+    objectiveLabel: objectiveProgressTitle(currentStage),
     reducedMotion: reducedMotionQuery.matches
   });
 
-  const progress = getStageObjectiveProgress(currentStage, view.snapshot.board, view.snapshot.metrics);
   gameTitleElement.textContent = `ナガシマス — ${currentStage.name}`;
   const phaseText = playbackFrame?.phase === null || playbackFrame?.phase === undefined
     ? terminalPhaseLabel(view.snapshot.phase)
     : phaseLabel(playbackFrame.phase, playbackFrame.event?.flowStep ?? null);
-  objectiveElement.textContent = `目標: ${stageObjectiveText(currentStage)}（進捗 ${progress.value} / ${progress.target}・${phaseText}）`;
+  objectiveElement.textContent = `目標: ${stageObjectiveText(currentStage)}（進捗 ${objectiveProgress.value} / ${objectiveProgress.target}・${phaseText}）`;
+  const progressRatio = objectiveProgress.target <= 0
+    ? 0
+    : Math.min(1, Math.max(0, objectiveProgress.value / objectiveProgress.target));
+  objectiveProgressTitleElement.textContent = objectiveProgressTitle(currentStage);
+  objectiveProgressLabelElement.textContent = `${objectiveProgress.value} / ${objectiveProgress.target}`;
+  objectiveProgressBarElement.style.width = `${progressRatio * 100}%`;
+  objectiveProgressTrackElement.setAttribute('aria-valuemin', '0');
+  objectiveProgressTrackElement.setAttribute('aria-valuemax', String(objectiveProgress.target));
+  objectiveProgressTrackElement.setAttribute('aria-valuenow', String(objectiveProgress.value));
+  objectiveProgressTrackElement.setAttribute(
+    'aria-label',
+    `${objectiveProgressTitle(currentStage)} ${objectiveProgress.value} / ${objectiveProgress.target}`
+  );
   const forecastText = view.forecasts.length === 0
     ? '雨予報: なし'
     : `雨予報: ${projection.forecasts.map((forecast) => `あと${forecast.turnsUntil}手・${forecast.totalAmount}・${forecast.cells.map((cell) => `セル${cell.index + 1}`).join('／')}`).join('、')}`;
@@ -970,6 +1142,7 @@ function render(): void {
     !paused && playback === null && remaining !== null && remaining <= 3_000
   );
   updateTurnGuide(view, playbackFrame);
+  updatePhaseTimeline(view, playbackFrame);
 
   const selectedRisk = view.pending === null
     ? null
@@ -1034,7 +1207,7 @@ function render(): void {
     } as const;
     resultTitle.textContent = view.snapshot.phase === 'cleared' ? 'クリア' : '失敗';
     resultSummary.textContent = view.snapshot.phase === 'cleared'
-      ? `目標「${stageObjectiveText(currentStage)}」を達成しました（${progress.value} / ${progress.target}）。`
+      ? `目標「${stageObjectiveText(currentStage)}」を達成しました（${objectiveProgress.value} / ${objectiveProgress.target}）。`
       : `目標「${stageObjectiveText(currentStage)}」を達成できませんでした。`;
     const score = view.snapshot.score;
     resultFirstBreak.textContent = resultFirstBreakText(resultInput);
@@ -1109,12 +1282,18 @@ confirmButton.addEventListener('click', () => {
   if (playback !== null || paused) return;
   const beforeView = controller.view;
   const previewSummary = buildStagePreviewSummary(beforeView.snapshot, beforeView.preview);
+  const constructionVisual = constructionVisualForView(beforeView);
   const execution = controller.confirm();
   if (execution === null) {
     lastMessage = '先に盤面へ候補を仮置きしてください。';
   } else if (execution.accepted) {
     lastMessage = '施工を確定しました。雨と水流を計算しました。';
-    startPlayback(execution, previewSummary?.construction ?? '施工あり');
+    startPlayback(
+      execution,
+      previewSummary?.construction ?? '施工あり',
+      constructionVisual,
+      turnPlaybackVisualForView(beforeView, beforeView.preview)
+    );
   } else {
     lastMessage = reasonText(execution.reason);
   }
@@ -1123,17 +1302,34 @@ confirmButton.addEventListener('click', () => {
 
 skipButton.addEventListener('click', () => {
   if (playback !== null || paused) return;
+  const beforeView = controller.view;
+  const turnPreview = controller.previewSkip();
   const execution = controller.skip();
   lastMessage = execution.accepted ? '施工を見送りました。' : reasonText(execution.reason);
-  if (execution.accepted) startPlayback(execution, '施工なし（見送り）');
+  if (execution.accepted) {
+    startPlayback(
+      execution,
+      '施工なし（見送り）',
+      null,
+      turnPlaybackVisualForView(beforeView, turnPreview)
+    );
+  }
   render();
 });
 
 undoButton.addEventListener('click', () => {
   if (playback !== null || paused) return;
+  const beforeView = controller.view;
   const execution = controller.undo();
   lastMessage = execution.accepted ? '直前の手を取り消しました。' : reasonText(execution.reason);
-  if (execution.accepted) startPlayback(execution, '直前の手を元に戻す');
+  if (execution.accepted) {
+    startPlayback(
+      execution,
+      '直前の手を元に戻す',
+      null,
+      turnPlaybackVisualForView(beforeView, null)
+    );
+  }
   render();
 });
 
@@ -1146,6 +1342,8 @@ retryButton.addEventListener('click', () => {
   savedStageSave = null;
   updateSavedGamePrompt();
   controller = new StageController(currentStage, selectedTimerMode);
+  activeConstructionVisual = null;
+  activeTurnPlaybackVisual = null;
   lastTurnOutcome = null;
   lastMessage = 'まず緑の丸を1つ押して仮置きしてください。';
   startTurnTimer();

@@ -6,7 +6,11 @@ import {
   createIsometricLayout,
   getCellGeometry
 } from '../../src/presentation/isometric';
-import { interpolateWaterTransferPoint } from '../../src/presentation/board-renderer';
+import {
+  flowParticlePositions,
+  interpolateWaterTransferPoint
+} from '../../src/presentation/board-renderer';
+import { waterVisualLevel } from '../../src/presentation/board-visuals';
 import type { WaterTransfer } from '../../src/domain/types';
 
 function board() {
@@ -50,5 +54,31 @@ describe('board playback water transfer visuals', () => {
 
     expect(start).toEqual(getCellGeometry(layout, snapshot, transfer.from).center);
     expect(end.y).toBeLessThan(start.y);
+  });
+
+  it('creates a visible particle train while keeping its route deterministic', () => {
+    const snapshot = board();
+    const layout = createIsometricLayout(800, 600);
+    const transfer: WaterTransfer = {
+      from: 0,
+      to: 1,
+      direction: Direction.East,
+      kind: 'cell',
+      amount: 8
+    };
+    const first = flowParticlePositions(layout, snapshot, transfer, 0.25, 4);
+    const second = flowParticlePositions(layout, snapshot, transfer, 0.25, 4);
+
+    expect(first).toHaveLength(4);
+    expect(first).toEqual(second);
+    expect(new Set(first.map((point) => `${point.x}:${point.y}`)).size).toBe(4);
+  });
+
+  it('maps water amounts to a bounded, non-zero pool level', () => {
+    expect(waterVisualLevel(0).ratio).toBe(0);
+    expect(waterVisualLevel(8).ratio).toBeGreaterThan(0);
+    expect(waterVisualLevel(24).ratio).toBe(1);
+    expect(waterVisualLevel(240).ratio).toBe(1);
+    expect(waterVisualLevel(24).depth).toBeGreaterThan(waterVisualLevel(8).depth);
   });
 });

@@ -281,6 +281,8 @@ describe('M2 stage-session adversarial contract', () => {
     if (!('nextFlow' in preview)) throw new Error('expected a valid turn preview');
     expect(preview.placementCells).toEqual([27, 35, 36]);
     expect(preview.rainCells).toEqual([{ index: 27, amount: 8 }]);
+    expect(preview.boardAfterRain.water[27]).toBe(8);
+    expect(preview.boardAfterRain.flowStep).toBe(0);
     expect(captureAuditState(session)).toEqual(before);
 
     const execution = session.execute(action);

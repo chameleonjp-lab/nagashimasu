@@ -125,6 +125,75 @@ button:disabled {
   line-height: 1.6;
 }
 
+.game-loop-visual {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(101, 215, 255, 0.28);
+  border-radius: 14px;
+  padding: 9px;
+  background: linear-gradient(135deg, rgba(18, 74, 91, 0.58), rgba(16, 43, 58, 0.48));
+}
+
+.game-loop-step {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 0;
+  text-align: center;
+}
+
+.game-loop-step strong,
+.game-loop-step small {
+  display: block;
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-loop-step strong {
+  color: #eef8ff;
+  font-size: 0.76rem;
+}
+
+.game-loop-step small {
+  color: #a9d5e3;
+  font-size: 0.65rem;
+}
+
+.loop-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  font-size: 1.15rem;
+  font-weight: 900;
+}
+
+.loop-terrain {
+  color: #06263a;
+  background: #ffd166;
+}
+
+.loop-rain {
+  color: #06263a;
+  background: #c8f1ff;
+}
+
+.loop-water {
+  color: #06263a;
+  background: #55d8ed;
+}
+
+.loop-arrow {
+  color: #8ee3cf;
+  font-size: 1.1rem;
+  font-weight: 900;
+}
+
 .game-purpose {
   margin: -6px 0 0;
   color: #ffd166;
@@ -346,6 +415,50 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+.objective-visual {
+  display: grid;
+  gap: 5px;
+  max-width: 420px;
+  margin-top: 6px;
+  border: 1px solid rgba(85, 216, 237, 0.35);
+  border-radius: 10px;
+  padding: 7px 9px;
+  background: rgba(8, 68, 121, 0.28);
+}
+
+.objective-visual-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #c8f1ff;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.objective-visual-heading strong {
+  color: #55d8ed;
+  font-variant-numeric: tabular-nums;
+}
+
+.objective-progress-track {
+  position: relative;
+  height: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(200, 241, 255, 0.34);
+  border-radius: 999px;
+  background: rgba(4, 31, 54, 0.9);
+}
+
+.objective-progress-track > span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2aa9d4, #8ee3cf);
+  transition: width 180ms ease-out;
+}
+
 .forecast-line,
 .game-risk {
   margin-top: 3px;
@@ -430,6 +543,73 @@ button:disabled {
   color: #d7fff0;
   background: rgba(16, 58, 63, 0.7);
   font-weight: 800;
+}
+
+.phase-timeline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 7px;
+}
+
+.phase-step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 4px;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid rgba(180, 235, 255, 0.16);
+  border-radius: 9px;
+  padding: 5px 6px;
+  color: #7899a7;
+  background: rgba(7, 21, 33, 0.52);
+}
+
+.phase-step.is-current {
+  border-color: #55d8ed;
+  color: #eef8ff;
+  background: rgba(8, 68, 121, 0.64);
+  box-shadow: 0 0 0 1px rgba(85, 216, 237, 0.14);
+}
+
+.phase-step.is-complete {
+  border-color: rgba(142, 227, 207, 0.46);
+  color: #aee9d7;
+}
+
+.phase-icon {
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  color: #06263a;
+  background: #8fb9c8;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.phase-step.is-current .phase-icon {
+  background: #55d8ed;
+}
+
+.phase-step strong,
+.phase-step small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phase-step strong {
+  font-size: 0.7rem;
+}
+
+.phase-step small {
+  color: #8fb9c8;
+  font-size: 0.6rem;
 }
 
 .game-turn {
@@ -591,6 +771,31 @@ button:disabled {
   border: 2px solid #f4fbff;
   border-radius: 50%;
   background: #b9e7ff;
+}
+
+.legend-flow-particle {
+  position: relative;
+}
+
+.legend-flow-particle::before,
+.legend-flow-particle::after {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border: 1px solid #f4fbff;
+  border-radius: 50%;
+  background: #65d7ff;
+  content: "";
+}
+
+.legend-flow-particle::before {
+  top: 3px;
+  left: 2px;
+}
+
+.legend-flow-particle::after {
+  right: 2px;
+  bottom: 3px;
 }
 
 .legend-safe {
