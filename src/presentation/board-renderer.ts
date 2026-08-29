@@ -1,5 +1,10 @@
 import { CellFlag, Direction, CELL_COUNT } from '../domain/constants';
-import type { BoardSnapshot, FlowStepResult, RainEvent } from '../domain/types';
+import type {
+  BoardSnapshot,
+  FlowStepResult,
+  RainEvent,
+  WaterTransfer
+} from '../domain/types';
 import type { StageTurnPreview } from '../domain/stage-session';
 import type { ForecastCellView, StageCellRiskView } from './stage-projection';
 import {
@@ -150,6 +155,30 @@ function flowTarget(
   return point(fromPoint.x + horizontal, fromPoint.y + vertical);
 }
 
+function flowTransferColor(transfer: WaterTransfer): string {
+  return transfer.kind === 'danger-edge'
+    ? '#ff6b6b'
+    : transfer.kind === 'safe-edge'
+      ? '#8ee3cf'
+      : '#b9e7ff';
+}
+
+/** Returns the point where a recorded water transfer is shown in playback. */
+export function interpolateWaterTransferPoint(
+  layout: IsometricLayout,
+  snapshot: Pick<BoardSnapshot, 'terrain'>,
+  transfer: Pick<WaterTransfer, 'from' | 'to' | 'direction'>,
+  progress: number
+): IsometricPoint {
+  const from = getCellGeometry(layout, snapshot, transfer.from).center;
+  const to = flowTarget(layout, snapshot, transfer.from, transfer.to, transfer.direction);
+  const ratio = clampPlaybackProgress(progress);
+  return point(
+    from.x + (to.x - from.x) * ratio,
+    from.y + (to.y - from.y) * ratio
+  );
+}
+
 function drawFlowPreview(
   context: CanvasRenderingContext2D,
   layout: IsometricLayout,
@@ -159,12 +188,41 @@ function drawFlowPreview(
   for (const transfer of result.transfers) {
     const from = getCellGeometry(layout, snapshot, transfer.from).center;
     const to = flowTarget(layout, snapshot, transfer.from, transfer.to, transfer.direction);
-    const color = transfer.kind === 'danger-edge'
-      ? '#ff6b6b'
-      : transfer.kind === 'safe-edge'
-        ? '#8ee3cf'
-        : '#b9e7ff';
-    drawArrow(context, from, to, color);
+    drawArrow(context, from, to, flowTransferColor(transfer));
+  }
+}
+
+function drawActiveWaterTransfers(
+  context: CanvasRenderingContext2D,
+  layout: IsometricLayout,
+  snapshot: Pick<BoardSnapshot, 'terrain'>,
+  result: FlowStepResult,
+  progress: number,
+  reducedMotion: boolean
+): void {
+  const transferProgress = reducedMotion ? 0.5 : clampPlaybackProgress(progress);
+  const radius = Math.max(4, Math.min(9, layout.tileHeight * 0.28));
+  for (const transfer of result.transfers) {
+    const position = interpolateWaterTransferPoint(
+      layout,
+      snapshot,
+      transfer,
+      transferProgress
+    );
+    const liftedY = position.y - Math.max(2, layout.tileHeight * 0.16);
+    const color = flowTransferColor(transfer);
+    context.beginPath();
+    context.arc(position.x, liftedY, radius, 0, Math.PI * 2);
+    context.fillStyle = color;
+    context.fill();
+    context.strokeStyle = '#f4fbff';
+    context.lineWidth = 1.5;
+    context.stroke();
+    context.font = `${Math.max(9, Math.round(layout.tileHeight * 0.2))}px system-ui, sans-serif`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillStyle = '#071521';
+    context.fillText(String(transfer.amount), position.x, liftedY);
   }
 }
 
@@ -337,6 +395,14 @@ export function renderIsometricBoard(
     const previousAlpha = context.globalAlpha;
     context.globalAlpha = 0.58 + playbackPulseValue * 0.42;
     drawFlowPreview(context, layout, snapshot, activeFlow);
+    drawActiveWaterTransfers(
+      context,
+      layout,
+      snapshot,
+      activeFlow,
+      playbackProgress,
+      options.reducedMotion ?? false
+    );
     context.globalAlpha = previousAlpha;
   }
 

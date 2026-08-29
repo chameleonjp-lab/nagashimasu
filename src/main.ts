@@ -24,6 +24,7 @@ import type { StageControllerView } from './application/stage-controller';
 import { isStageUnlocked, stageAccessLabel } from './application/stage-access';
 import { TurnTimer, formatRemainingSeconds, timerDurationMs } from './application/turn-timer';
 import { shouldStartTurnTimerAfterVisibility } from './application/visibility-resume';
+import { CELL_COUNT } from './domain/constants';
 import type { CandidateSlot, StageTimerMode } from './domain/stage-replay';
 import { getStageObjectiveProgress } from './domain/stage-session';
 import type { StageExecution, StageTracePhase } from './domain/stage-session';
@@ -94,6 +95,11 @@ function stageNumber(definition: ValidatedStageDefinition): number {
   const match = /^stage-(\d+)/u.exec(definition.id);
   return Number(match?.[1] ?? 0);
 }
+
+const cellPickerMarkup = Array.from(
+  { length: CELL_COUNT },
+  (_, index) => `<button class="cell-picker-cell" type="button" data-cell-index="${index}" aria-pressed="false" disabled>${index + 1}</button>`
+).join('');
 
 const stageOptionsMarkup = BUILT_IN_STAGES.map((definition) => `
   <button class="stage-option" type="button" data-stage-id="${definition.id}" aria-pressed="${definition.id === currentStage.id}">
@@ -172,6 +178,22 @@ appRoot.innerHTML = `
     </section>
     <section class="game-controls" aria-label="施工操作">
       <p class="construction-help" id="construction-help">緑の丸が、選んだ候補を置ける場所です。セル番号は予報と同じ番号です。</p>
+      <section class="board-legend" aria-labelledby="board-legend-title">
+        <h2 id="board-legend-title">盤面の見方</h2>
+        <ul class="legend-list">
+          <li><span class="legend-symbol legend-anchor" aria-hidden="true"></span><span>緑の丸：選んだ候補を置けるセル</span></li>
+          <li><span class="legend-symbol legend-forecast" aria-hidden="true"></span><span>点線の輪：予報の雨（数字は雨量）</span></li>
+          <li><span class="legend-symbol legend-flow" aria-hidden="true"></span><span>水色の点：再生中に動く水（数字は移動量）</span></li>
+          <li><span class="legend-symbol legend-safe" aria-hidden="true"></span><span>緑の辺：安全な排水方向</span></li>
+          <li><span class="legend-symbol legend-danger" aria-hidden="true"></span><span>赤い辺：危険側へ流れる方向</span></li>
+          <li><span class="legend-symbol legend-risk" aria-hidden="true"></span><span>黄〜赤の塗り：雨と水流の危険度</span></li>
+        </ul>
+      </section>
+      <details class="cell-picker" id="cell-picker">
+        <summary>セル番号で仮置きする</summary>
+        <p class="cell-picker-help" id="cell-picker-help">施工可能なセルだけ押せます。キーボードでも選べます。</p>
+        <div class="cell-picker-grid" id="cell-picker-grid" aria-label="施工可能なセル番号">${cellPickerMarkup}</div>
+      </details>
       <div class="candidate-row">
         <button class="candidate-card" id="candidate-a" type="button" aria-pressed="true">
           <span class="candidate-shape" aria-hidden="true"></span>
@@ -242,6 +264,10 @@ const forecastElement = required<HTMLElement>('#forecast');
 const riskElement = required<HTMLElement>('#risk');
 const turnElement = required<HTMLElement>('#turn');
 const constructionHelpElement = required<HTMLElement>('#construction-help');
+const cellPickerHelpElement = required<HTMLElement>('#cell-picker-help');
+const cellPickerButtons = Array.from(
+  appRoot.querySelectorAll<HTMLButtonElement>('.cell-picker-cell')
+);
 const previewSummaryElement = required<HTMLElement>('#preview-summary');
 const previewConstructionElement = required<HTMLElement>('#preview-construction');
 const previewRainElement = required<HTMLElement>('#preview-rain');
@@ -714,6 +740,28 @@ function renderCandidateCard(
   button.setAttribute('aria-label', `${titleText}、${shapeText}、向き${rotation + 1}`);
 }
 
+function updateCellPicker(view: StageControllerView, locked: boolean): void {
+  const legalAnchors = new Set(view.legalAnchorIndices);
+  const canSelect = !locked && view.snapshot.phase === 'awaiting-turn';
+  cellPickerHelpElement.textContent = legalAnchors.size > 0
+    ? `施工可能なセルは${legalAnchors.size}か所です。有効な番号を押すと仮置きします。`
+    : '現在、選んだ候補を置けるセルはありません。見送りで水を進められます。';
+  for (const button of cellPickerButtons) {
+    const index = Number(button.dataset['cellIndex']);
+    const legal = Number.isSafeInteger(index) && legalAnchors.has(index);
+    const selected = view.pending?.anchorIndex === index;
+    button.disabled = !canSelect || !legal;
+    button.classList.toggle('is-legal', legal);
+    button.setAttribute('aria-pressed', String(selected));
+    button.setAttribute(
+      'aria-label',
+      legal
+        ? `セル${index + 1}${selected ? '（選択中）' : '（施工可能）'}`
+        : `セル${index + 1}（現在は施工不可）`
+    );
+  }
+}
+
 function render(): void {
   const currentLayout = layout;
   if (currentLayout === null) return;
@@ -791,6 +839,7 @@ function render(): void {
   constructionHelpElement.textContent = view.legalAnchorIndices.length > 0
     ? `緑の丸が、選んだ候補を置ける場所です（${view.legalAnchorIndices.length}か所）。セル番号は予報と同じ番号です。`
     : '現在、選んだ候補を置ける場所はありません。見送りで水を進められます。';
+  updateCellPicker(view, locked);
 
   for (const card of view.candidates) {
     const button = candidateButtons[card.slot];
@@ -861,6 +910,22 @@ candidateButtons.forEach((button, slot) => {
     if (playback !== null || paused) return;
     controller.selectCandidate(slot as CandidateSlot);
     lastMessage = `${slot === 0 ? '候補A' : '候補B'}を選択しました。`;
+    render();
+  });
+});
+
+cellPickerButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    if (playback !== null || paused) return;
+    const index = Number(button.dataset['cellIndex']);
+    const view = controller.view;
+    if (
+      !Number.isSafeInteger(index) ||
+      view.snapshot.phase !== 'awaiting-turn' ||
+      !view.legalAnchorIndices.includes(index)
+    ) return;
+    controller.setAnchor(index);
+    lastMessage = `セル${index + 1}に仮置きしました。施工確定で手番が進みます。`;
     render();
   });
 });

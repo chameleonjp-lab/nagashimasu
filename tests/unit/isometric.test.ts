@@ -5,6 +5,7 @@ import { CELL_COUNT } from '../../src/domain/constants';
 import { getBuiltInStage } from '../../src/domain/stages';
 import {
   createIsometricLayout,
+  CONSTRUCTION_TAP_TARGET_PX,
   getCellGeometry,
   hitTestCell,
   insetDiamond,
@@ -64,6 +65,26 @@ describe('isometric layout', () => {
     expect(hitTestCell(layout, snapshot, center.x, center.y)).not.toBe(coveredAnchor);
     expect(
       hitTestCell(layout, snapshot, center.x, center.y, [coveredAnchor])
+    ).toBe(coveredAnchor);
+  });
+
+  it('keeps the legal marker target at the 44 CSS px minimum on a narrow board', () => {
+    const stage = getBuiltInStage('stage-02-open-to-sea');
+    if (stage === undefined) throw new Error('stage fixture missing');
+    const snapshot = new BoardState(stage.board).snapshot();
+    const layout = createIsometricLayout(390, 280, { padding: 16 });
+    const coveredAnchor = 28;
+    const center = getCellGeometry(layout, snapshot, coveredAnchor).center;
+
+    expect(CONSTRUCTION_TAP_TARGET_PX).toBe(44);
+    expect(
+      hitTestCell(
+        layout,
+        snapshot,
+        center.x + CONSTRUCTION_TAP_TARGET_PX / 2 - 0.5,
+        center.y,
+        [coveredAnchor]
+      )
     ).toBe(coveredAnchor);
   });
 
