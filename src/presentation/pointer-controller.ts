@@ -37,10 +37,10 @@ function toData(event: PointerEvent): PointerData {
 }
 
 function preventMouseDefault(event: PointerEvent): void {
-  // Touch gestures must keep the browser's vertical pan available. A touch
-  // that becomes a page scroll is followed by pointercancel, which clears the
-  // temporary placement in the application layer. Mouse input has no page
-  // pan to preserve, so suppress its native selection behaviour as before.
+  // Keep touch defaults available to the browser; CSS decides whether the
+  // current surface is a board gesture or a scrollable operation sheet. Mouse
+  // input has no touch pan to preserve, so suppress its native selection
+  // behaviour as before.
   if (event.pointerType !== 'touch') event.preventDefault();
 }
 

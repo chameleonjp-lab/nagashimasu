@@ -46,8 +46,8 @@ M2までで、8×8盤面の水流とステージ進行は画面なしで再現�
 - 別の`pointerId`からのdown／move／upは無視する。
 - 受理したPointerにはpointer captureを設定する。
 - `pointercancel`、画面遷移、入力解除時にはcaptureを解放する。
-- 盤面は`touch-action: pan-y`とし、盤面上の縦スワイプはページスクロールへ渡す。タップまたは短いPointer移動は仮置きに使い、スクロールへ移行したPointerは`pointercancel`で仮置きを解除する。横スクロールはページ全体の`overflow-x: hidden`で抑える。
-- タッチPointerではブラウザ既定動作を`preventDefault`しない。マウスPointerだけ既定の選択動作を抑制し、タッチのスクロール開始を妨げない。
+- 盤面上のPointerは仮置きに使い、`pointercancel`が発生しても意図した仮置きを自動解除しない。スマートフォンで操作内容を読むためのスクロールは、盤面の上ではなく画面下の操作シート内で行う。画面構成と操作シートの境界はADR 0017で定める。
+- タッチPointerではブラウザ既定動作を`preventDefault`しない。盤面はCSSで操作面として扱い、操作シートはCSSの縦スクロール領域として扱う。マウスPointerだけ既定の選択動作を抑制する。
 - 主要ボタンは44 CSS px以上とする。
 
 ### 4. Previewの正本
