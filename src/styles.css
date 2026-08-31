@@ -237,6 +237,71 @@ button:disabled {
   background: rgba(16, 43, 58, 0.52);
 }
 
+.player-name-card,
+.platform-actions,
+.result-sharing,
+.online-ranking {
+  display: grid;
+  gap: 8px;
+}
+
+.player-name-card {
+  border: 1px solid rgba(180, 235, 255, 0.14);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(16, 43, 58, 0.52);
+}
+
+.player-name-card h2,
+.player-name-card p,
+.result-sharing h3,
+.online-ranking h3,
+.result-sharing p,
+.online-ranking p {
+  margin: 0;
+}
+
+.player-name-card h2,
+.result-sharing h3,
+.online-ranking h3 {
+  color: #ffd166;
+  font-size: 0.92rem;
+}
+
+.player-name-card label {
+  color: #d9edf4;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.player-name-card input,
+#result-share-text {
+  width: 100%;
+  border: 1px solid rgba(180, 235, 255, 0.3);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #eef8ff;
+  background: rgba(7, 21, 33, 0.8);
+  font: inherit;
+}
+
+.player-name-note,
+.platform-status,
+.result-player {
+  color: #b8d9e5;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.platform-actions {
+  align-items: start;
+}
+
+.platform-link {
+  color: #8ee3cf;
+  font-weight: 700;
+}
+
 .tutorial-card ol {
   display: grid;
   gap: 8px;
