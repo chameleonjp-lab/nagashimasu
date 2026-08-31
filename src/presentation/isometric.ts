@@ -2,7 +2,8 @@ import {
   BOARD_HEIGHT,
   BOARD_WIDTH,
   CELL_COUNT,
-  MAX_TERRAIN_HEIGHT
+  MAX_TERRAIN_HEIGHT,
+  Direction
 } from '../domain/constants';
 import { coordinateOf } from '../domain/board';
 import type { BoardSnapshot } from '../domain/types';
@@ -22,7 +23,11 @@ export interface IsometricLayout {
   readonly originY: number;
   readonly viewportWidth: number;
   readonly viewportHeight: number;
+  /** Number of clockwise quarter turns used by the shared view and hit test. */
+  readonly rotation: IsometricRotation;
 }
+
+export type IsometricRotation = 0 | 1 | 2 | 3;
 
 export interface IsometricCellGeometry {
   readonly index: number;
@@ -40,11 +45,56 @@ export interface IsometricLayoutOptions {
   readonly padding?: number;
   readonly maxTerrainHeight?: number;
   readonly tileAspect?: number;
+  readonly rotation?: number;
 }
 
 const DEFAULT_PADDING = 12;
 const DEFAULT_TILE_ASPECT = 0.52;
 export const CONSTRUCTION_TAP_TARGET_PX = 44;
+
+export function normalizeIsometricRotation(value: number): IsometricRotation {
+  if (!Number.isFinite(value)) return 0;
+  const normalized = ((Math.trunc(value) % 4) + 4) % 4;
+  return normalized as IsometricRotation;
+}
+
+/** Maps a logical board coordinate into the currently visible board direction. */
+export function displayCoordinateOf(
+  row: number,
+  column: number,
+  rotation: IsometricRotation = 0
+): { readonly row: number; readonly column: number } {
+  switch (rotation) {
+    case 1:
+      return { row: column, column: BOARD_WIDTH - 1 - row };
+    case 2:
+      return { row: BOARD_HEIGHT - 1 - row, column: BOARD_WIDTH - 1 - column };
+    case 3:
+      return { row: BOARD_HEIGHT - 1 - column, column: row };
+    default:
+      return { row, column };
+  }
+}
+
+export function displayCoordinateForIndex(
+  index: number,
+  rotation: IsometricRotation = 0
+): { readonly row: number; readonly column: number } {
+  const coordinate = coordinateOf(index);
+  return displayCoordinateOf(coordinate.row, coordinate.column, rotation);
+}
+
+/** Maps a logical edge to the edge where it is drawn after camera rotation. */
+export function displayDirection(
+  direction: Direction,
+  rotation: IsometricRotation = 0
+): Direction {
+  if (rotation === 0) return direction;
+  const directions = [Direction.North, Direction.East, Direction.South, Direction.West] as const;
+  const index = directions.indexOf(direction as (typeof directions)[number]);
+  if (index < 0) return direction;
+  return directions[(index + rotation) % directions.length] ?? direction;
+}
 
 function assertViewport(value: number, label: string): void {
   if (!Number.isFinite(value) || value <= 0) {
@@ -74,6 +124,7 @@ export function createIsometricLayout(
   const padding = options.padding ?? DEFAULT_PADDING;
   const maxTerrainHeight = options.maxTerrainHeight ?? MAX_TERRAIN_HEIGHT;
   const tileAspect = options.tileAspect ?? DEFAULT_TILE_ASPECT;
+  const rotation = normalizeIsometricRotation(options.rotation ?? 0);
   if (!Number.isFinite(padding) || padding < 0) {
     throw new RangeError('padding must be a non-negative finite number');
   }
@@ -103,7 +154,8 @@ export function createIsometricLayout(
     originX: viewportWidth / 2,
     originY: padding + maxTerrainHeight * heightScale + tileHeight / 2,
     viewportWidth,
-    viewportHeight
+    viewportHeight,
+    rotation
   });
 }
 
@@ -116,7 +168,12 @@ export function projectCell(
     throw new RangeError(`cell index must be an integer from 0 to ${CELL_COUNT - 1}`);
   }
   if (!Number.isFinite(terrain)) throw new RangeError('terrain must be finite');
-  const { row, column } = coordinateOf(index);
+  const coordinate = coordinateOf(index);
+  const { row, column } = displayCoordinateOf(
+    coordinate.row,
+    coordinate.column,
+    layout.rotation
+  );
   return point(
     layout.originX + (column - row) * layout.tileWidth / 2,
     layout.originY + (row + column) * layout.tileHeight / 2 - terrain * layout.heightScale
@@ -139,6 +196,7 @@ export function getCellGeometry(
   terrainOverride?: number
 ): IsometricCellGeometry {
   const terrain = terrainOverride ?? terrainValue(snapshot, index);
+  const displayCoordinate = displayCoordinateForIndex(index, layout.rotation);
   const center = projectCell(layout, index, terrain);
   const groundCenter = projectCell(layout, index, 0);
   const top = diamond(center, layout);
@@ -146,7 +204,8 @@ export function getCellGeometry(
 
   return Object.freeze({
     index,
-    ...coordinateOf(index),
+    row: displayCoordinate.row,
+    column: displayCoordinate.column,
     terrain,
     center,
     top,
@@ -260,12 +319,13 @@ export function hitTestCell(
 }
 
 export function sortCellIndicesForDrawing(
-  snapshot: Pick<BoardSnapshot, 'terrain'>
+  snapshot: Pick<BoardSnapshot, 'terrain'>,
+  rotation: IsometricRotation = 0
 ): readonly number[] {
   const indices = Array.from({ length: CELL_COUNT }, (_, index) => index);
   indices.sort((left, right) => {
-    const leftCoordinate = coordinateOf(left);
-    const rightCoordinate = coordinateOf(right);
+    const leftCoordinate = displayCoordinateForIndex(left, rotation);
+    const rightCoordinate = displayCoordinateForIndex(right, rotation);
     const depthDifference =
       leftCoordinate.row + leftCoordinate.column - rightCoordinate.row - rightCoordinate.column;
     if (depthDifference !== 0) return depthDifference;
