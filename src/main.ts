@@ -35,7 +35,11 @@ import type {
 import type { BoardSnapshot } from './domain/types';
 import { BUILT_IN_STAGES, getBuiltInStage } from './domain/stages';
 import type { ValidatedStageDefinition } from './domain/stage-definition';
-import { createIsometricLayout, hitTestCell } from './presentation/isometric';
+import {
+  createIsometricLayout,
+  hitTestCell,
+  normalizeIsometricRotation
+} from './presentation/isometric';
 import { PointerController } from './presentation/pointer-controller';
 import { renderIsometricBoard } from './presentation/board-renderer';
 import type { ConstructionVisual } from './presentation/board-renderer';
@@ -52,7 +56,7 @@ import {
 import type { TurnOutcomeSummary } from './presentation/turn-outcome';
 import { TracePlayback, tracePlaybackDurations } from './presentation/trace-playback';
 import type { TracePlaybackFrame } from './presentation/trace-playback';
-import type { IsometricLayout } from './presentation/isometric';
+import type { IsometricLayout, IsometricRotation } from './presentation/isometric';
 
 const root = document.querySelector<HTMLDivElement>('#app');
 if (root === null) throw new Error('app root is missing');
@@ -237,32 +241,29 @@ appRoot.innerHTML = `
     </header>
     <section class="game-stage" aria-label="治水盤面">
       <canvas class="game-canvas" id="board" aria-label="8×8の治水盤面"></canvas>
+      <div class="camera-controls" aria-label="盤面の向き">
+        <button id="camera-left" type="button" aria-label="盤面を左へ90度回転">↶</button>
+        <span id="camera-label">盤面 1 / 4</span>
+        <button id="camera-right" type="button" aria-label="盤面を右へ90度回転">↷</button>
+        <button id="camera-reset" type="button">正面</button>
+      </div>
+      <div class="mobile-stage-action">
+        <p id="mobile-stage-prompt">操作を開いて、工事を選びます。</p>
+        <button id="mobile-controls-toggle" type="button" aria-expanded="false">工事を選ぶ</button>
+      </div>
       <section class="pause-panel" id="pause-panel" hidden aria-live="polite">
         <h2>一時停止中</h2>
         <p id="pause-message">再開すると、残り時間から続けます。</p>
         <button id="resume" type="button">再開</button>
       </section>
     </section>
-    <section class="game-controls" aria-label="施工操作">
-      <h2 class="controls-title">手番の操作</h2>
+    <div class="mobile-controls-backdrop" id="mobile-controls-backdrop" hidden></div>
+    <section class="game-controls" id="game-controls" aria-label="施工操作">
+      <div class="controls-sheet-heading">
+        <h2 class="controls-title">この手の操作</h2>
+        <button id="mobile-controls-close" type="button">盤面へ戻る</button>
+      </div>
       <p class="construction-help" id="construction-help">緑の丸が、選んだ候補を置ける場所です。セル番号は予報と同じ番号です。</p>
-      <section class="board-legend" aria-labelledby="board-legend-title">
-        <h2 id="board-legend-title">盤面の見方</h2>
-        <ul class="legend-list">
-          <li><span class="legend-symbol legend-anchor" aria-hidden="true"></span><span>緑の丸：選んだ候補を置けるセル</span></li>
-          <li><span class="legend-symbol legend-forecast" aria-hidden="true"></span><span>点線の輪：予報の雨（数字は雨量）</span></li>
-          <li><span class="legend-symbol legend-flow" aria-hidden="true"></span><span>青い水面：そのセルにたまった水（数字は水量）</span></li>
-          <li><span class="legend-symbol legend-flow-particle" aria-hidden="true"></span><span>水色の粒：再生中に移動する水</span></li>
-          <li><span class="legend-symbol legend-safe" aria-hidden="true"></span><span>緑の辺：安全な排水方向</span></li>
-          <li><span class="legend-symbol legend-danger" aria-hidden="true"></span><span>赤い辺：危険側へ流れる方向</span></li>
-          <li><span class="legend-symbol legend-risk" aria-hidden="true"></span><span>黄〜赤の塗り：雨と水流の危険度</span></li>
-        </ul>
-      </section>
-      <details class="cell-picker" id="cell-picker">
-        <summary>盤面が押しにくいとき：セル番号で選ぶ</summary>
-        <p class="cell-picker-help" id="cell-picker-help">施工可能なセルだけ押せます。キーボードでも選べます。</p>
-        <div class="cell-picker-grid" id="cell-picker-grid" aria-label="施工可能なセル番号">${cellPickerMarkup}</div>
-      </details>
       <div class="candidate-row">
         <button class="candidate-card" id="candidate-a" type="button" aria-pressed="true">
           <span class="candidate-shape" aria-hidden="true"></span>
@@ -273,6 +274,11 @@ appRoot.innerHTML = `
           <span class="candidate-copy"><strong></strong><small></small></span>
         </button>
       </div>
+      <section class="preview-summary" id="preview-summary" aria-label="施工プレビュー" aria-live="polite" aria-atomic="true" hidden>
+        <p id="preview-construction"></p>
+        <p id="preview-rain"></p>
+        <p id="preview-flow"></p>
+      </section>
       <div class="action-row">
         <button id="rotate" type="button"><strong>向きを変える</strong><small>配置を回転</small></button>
         <button id="cancel" type="button"><strong>仮置きを取消</strong><small>選び直す</small></button>
@@ -280,11 +286,26 @@ appRoot.innerHTML = `
         <button id="skip" type="button"><strong>見送り</strong><small>工事せず進める</small></button>
         <button id="undo" type="button"><strong>1手戻す</strong><small>Undo</small></button>
       </div>
-      <section class="preview-summary" id="preview-summary" aria-label="施工プレビュー" aria-live="polite" aria-atomic="true" hidden>
-        <p id="preview-construction"></p>
-        <p id="preview-rain"></p>
-        <p id="preview-flow"></p>
-      </section>
+      <details class="secondary-info" id="secondary-info">
+        <summary>盤面の見方・セル番号</summary>
+        <section class="board-legend" aria-labelledby="board-legend-title">
+          <h2 id="board-legend-title">盤面の見方</h2>
+          <ul class="legend-list">
+            <li><span class="legend-symbol legend-anchor" aria-hidden="true"></span><span>緑の丸：選んだ候補を置けるセル</span></li>
+            <li><span class="legend-symbol legend-forecast" aria-hidden="true"></span><span>点線の輪：予報の雨（数字は雨量）</span></li>
+            <li><span class="legend-symbol legend-flow" aria-hidden="true"></span><span>青い水面：そのセルにたまった水（数字は水量）</span></li>
+            <li><span class="legend-symbol legend-flow-particle" aria-hidden="true"></span><span>水色の粒：再生中に移動する水</span></li>
+            <li><span class="legend-symbol legend-safe" aria-hidden="true"></span><span>緑の辺：安全な排水方向</span></li>
+            <li><span class="legend-symbol legend-danger" aria-hidden="true"></span><span>赤い辺：危険側へ流れる方向</span></li>
+            <li><span class="legend-symbol legend-risk" aria-hidden="true"></span><span>黄〜赤の塗り：雨と水流の危険度</span></li>
+          </ul>
+        </section>
+        <details class="cell-picker" id="cell-picker">
+          <summary>盤面が押しにくいとき：セル番号で選ぶ</summary>
+          <p class="cell-picker-help" id="cell-picker-help">施工可能なセルだけ押せます。キーボードでも選べます。</p>
+          <div class="cell-picker-grid" id="cell-picker-grid" aria-label="施工可能なセル番号">${cellPickerMarkup}</div>
+        </details>
+      </details>
       <section class="turn-outcome" id="turn-outcome" hidden aria-live="polite" aria-atomic="true">
         <h2>直前の手番で起きたこと</h2>
         <p id="turn-outcome-construction"></p>
@@ -293,7 +314,7 @@ appRoot.innerHTML = `
         <p id="turn-outcome-result"></p>
       </section>
       <p class="game-message" id="message" role="status" aria-live="polite"></p>
-      <section class="result-panel" id="result-panel" hidden aria-live="polite">
+      <section class="result-panel" id="result-panel" tabindex="-1" hidden aria-live="polite">
         <h2 id="result-title"></h2>
         <p id="result-summary"></p>
         <h3>なぜこの結果になったか</h3>
@@ -320,6 +341,15 @@ const context = canvas.getContext('2d');
 if (context === null) throw new Error('2D canvas context is unavailable');
 const canvasContext = context;
 const stageElement = required<HTMLElement>('.game-stage');
+const gameControls = required<HTMLElement>('#game-controls');
+const mobileControlsBackdrop = required<HTMLElement>('#mobile-controls-backdrop');
+const mobileControlsToggle = required<HTMLButtonElement>('#mobile-controls-toggle');
+const mobileControlsClose = required<HTMLButtonElement>('#mobile-controls-close');
+const mobileStagePrompt = required<HTMLElement>('#mobile-stage-prompt');
+const cameraLeftButton = required<HTMLButtonElement>('#camera-left');
+const cameraRightButton = required<HTMLButtonElement>('#camera-right');
+const cameraResetButton = required<HTMLButtonElement>('#camera-reset');
+const cameraLabel = required<HTMLElement>('#camera-label');
 const startPanel = required<HTMLElement>('#start-panel');
 const gameShell = required<HTMLElement>('#game-shell');
 const gameTitleElement = required<HTMLElement>('#game-title');
@@ -394,6 +424,7 @@ const pauseMessage = required<HTMLElement>('#pause-message');
 const resumeButton = required<HTMLButtonElement>('#resume');
 
 let layout: IsometricLayout | null = null;
+let cameraRotation: IsometricRotation = 0;
 let lastMessage = 'まず緑の丸を1つ押して仮置きしてください。';
 let lastTurnOutcome: TurnOutcomeSummary | null = null;
 let activeConstructionVisual: ConstructionVisual | null = null;
@@ -409,7 +440,68 @@ let selectedPlaybackSpeed: ProgressPlaybackSpeed = progress.playbackSpeed;
 let paused = false;
 let pageHidden = document.hidden;
 let turnTimer: TurnTimer | null = null;
+let mobileControlsOpen = false;
 const PLAYBACK_SPEED_UNLOCK_STAGE_ID = 'stage-02-open-to-sea';
+
+function isMobileViewport(): boolean {
+  return window.matchMedia('(max-width: 759px)').matches;
+}
+
+function setMobileControlsOpen(open: boolean): void {
+  const wasOpen = mobileControlsOpen;
+  mobileControlsOpen = open;
+  gameControls.classList.toggle('is-open', open);
+  gameControls.setAttribute('aria-hidden', String(!open && isMobileViewport()));
+  mobileControlsBackdrop.hidden = !open || !isMobileViewport();
+  mobileControlsToggle.setAttribute('aria-expanded', String(open));
+  document.body.classList.toggle('mobile-sheet-open', open && isMobileViewport());
+  if (wasOpen && !open && isMobileViewport() && gameShell.hidden === false) {
+    window.requestAnimationFrame(() => mobileControlsToggle.focus({ preventScroll: true }));
+  }
+}
+
+function cameraText(rotation: IsometricRotation): string {
+  return `盤面 ${rotation + 1} / 4`;
+}
+
+function setCameraRotation(nextRotation: number): void {
+  cameraRotation = normalizeIsometricRotation(nextRotation);
+  cameraLabel.textContent = cameraText(cameraRotation);
+  if (layout !== null) {
+    layout = createIsometricLayout(layout.viewportWidth, layout.viewportHeight, {
+      padding: 16,
+      rotation: cameraRotation
+    });
+  }
+}
+
+function updateMobileStagePrompt(view: StageControllerView): void {
+  if (!isMobileViewport()) {
+    mobileStagePrompt.textContent = '';
+    mobileControlsToggle.hidden = true;
+    mobileControlsToggle.disabled = false;
+    return;
+  }
+  mobileControlsToggle.hidden = false;
+  mobileControlsToggle.disabled = playback !== null;
+  if (playback !== null) {
+    mobileStagePrompt.textContent = '工事・雨・水流を見ています。';
+    mobileControlsToggle.textContent = '操作を閉じる';
+    return;
+  }
+  if (view.snapshot.phase !== 'awaiting-turn') {
+    mobileStagePrompt.textContent = '結果を確認してください。';
+    mobileControlsToggle.textContent = '結果を開く';
+    return;
+  }
+  if (view.pending !== null) {
+    mobileStagePrompt.textContent = '仮置き中です。盤面の下で予測を確認します。';
+    mobileControlsToggle.textContent = '予測・確定を開く';
+    return;
+  }
+  mobileStagePrompt.textContent = '候補を選んだら、盤面をタップして置きます。';
+  mobileControlsToggle.textContent = '工事を選ぶ';
+}
 
 function persistProgress(next: typeof progress): void {
   progress = next;
@@ -609,6 +701,8 @@ function resumeSavedGame(): void {
   pausePanel.hidden = true;
   currentStage = definition;
   selectedStageId = definition.id;
+  cameraRotation = 0;
+  cameraLabel.textContent = cameraText(cameraRotation);
   selectedTimerMode = save.replay.header.timerMode;
   lastTurnOutcome = null;
   persistProgress(markTutorialSeen(setLastStageId(progress, definition.id)));
@@ -618,6 +712,7 @@ function resumeSavedGame(): void {
   lastMessage = '保存した続きから再開しました。';
   startPanel.hidden = true;
   gameShell.hidden = false;
+  setMobileControlsOpen(true);
   resizeCanvas();
   startTurnTimer();
 }
@@ -636,6 +731,8 @@ function startSelectedStage(): void {
   paused = false;
   pausePanel.hidden = true;
   currentStage = selected;
+  cameraRotation = 0;
+  cameraLabel.textContent = cameraText(cameraRotation);
   if (savedStageSave?.replay.header.stageId === selected.id) {
     clearStageSave();
     savedStageSave = null;
@@ -648,6 +745,7 @@ function startSelectedStage(): void {
   lastMessage = 'まず緑の丸を1つ押して仮置きしてください。';
   startPanel.hidden = true;
   gameShell.hidden = false;
+  setMobileControlsOpen(true);
   resizeCanvas();
   startTurnTimer();
 }
@@ -658,6 +756,7 @@ function showStagePicker(): void {
   paused = false;
   pausePanel.hidden = true;
   controller.cancelPlacement();
+  setMobileControlsOpen(false);
   gameShell.hidden = true;
   startPanel.hidden = false;
   updateStagePicker();
@@ -864,6 +963,7 @@ function startPlayback(
   turnPlaybackVisual: TurnPlaybackVisual | null = null
 ): void {
   stopTurnTimer();
+  setMobileControlsOpen(false);
   playback?.cancel();
   activeConstructionVisual = constructionVisual;
   activeTurnPlaybackVisual = turnPlaybackVisual;
@@ -901,8 +1001,12 @@ function startPlayback(
         clearStageSave();
         savedStageSave = null;
         updateSavedGamePrompt();
+        setMobileControlsOpen(true);
       }
       render();
+      if (controller.view.snapshot.phase !== 'awaiting-turn' && isMobileViewport()) {
+        window.requestAnimationFrame(() => resultPanel.focus({ preventScroll: true }));
+      }
     }
   }, tracePlaybackDurations(
     playbackSpeedUnlocked() ? selectedPlaybackSpeed : 'standard'
@@ -918,7 +1022,10 @@ function resizeCanvas(): void {
   canvas.width = Math.max(1, Math.round(width * devicePixelRatio));
   canvas.height = Math.max(1, Math.round(height * devicePixelRatio));
   canvasContext.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-  layout = createIsometricLayout(width, height, { padding: 16 });
+  layout = createIsometricLayout(width, height, {
+    padding: 16,
+    rotation: cameraRotation
+  });
   render();
 }
 
@@ -945,6 +1052,7 @@ function selectCellAt(clientX: number, clientY: number): void {
   if (cell !== null) {
     controller.setAnchor(cell);
     lastMessage = `セル${cell + 1}に仮置きしました。施工確定で手番が進みます。`;
+    if (isMobileViewport()) setMobileControlsOpen(true);
     render();
   }
 }
@@ -1079,6 +1187,23 @@ function render(): void {
     view.preview
   );
   const previewSummary = buildStagePreviewSummary(view.snapshot, view.preview);
+  const storageCells = currentStage.storageMask.flatMap((value, index) => value === 1 ? [index] : []);
+  const resultHighlightCells = view.snapshot.phase === 'failed'
+    ? view.snapshot.board.terrain.flatMap((_, index) =>
+      (view.snapshot.board.dangerEdgeMask[index] ?? 0) !== 0 ||
+      (view.snapshot.metrics.firstFloodStepByCell[index] ?? null) !== null
+        ? [index]
+        : []
+    )
+    : [];
+  const labelCells = [
+    ...view.legalAnchorIndices,
+    ...projection.forecastCells.map((forecast) => forecast.index),
+    ...storageCells,
+    ...view.snapshot.board.terrain.flatMap((_, index) =>
+      (view.snapshot.board.cellFlags[index] ?? 0) !== 0 ? [index] : []
+    )
+  ];
   renderIsometricBoard(canvasContext, board, currentLayout, {
     selectedCell: view.pending?.anchorIndex ?? null,
     preview: view.preview,
@@ -1098,6 +1223,9 @@ function render(): void {
     resultText: resultVisualText(view),
     objectiveProgress,
     objectiveLabel: objectiveProgressTitle(currentStage),
+    storageCells,
+    resultHighlightCells,
+    labelCells,
     reducedMotion: reducedMotionQuery.matches
   });
 
@@ -1127,6 +1255,7 @@ function render(): void {
   const duration = thinkingDurationMs();
   const remaining = turnTimer?.remainingMs ?? null;
   const terminal = view.snapshot.phase !== 'awaiting-turn';
+  gameControls.classList.toggle('is-terminal', terminal);
   const timerText = playback !== null
     ? '演出中'
     : paused
@@ -1143,6 +1272,8 @@ function render(): void {
   );
   updateTurnGuide(view, playbackFrame);
   updatePhaseTimeline(view, playbackFrame);
+  updateMobileStagePrompt(view);
+  cameraLabel.textContent = cameraText(cameraRotation);
 
   const selectedRisk = view.pending === null
     ? null
@@ -1164,7 +1295,11 @@ function render(): void {
   previewFlowElement.textContent = previewSummary?.flow ?? '';
 
   constructionHelpElement.textContent = view.legalAnchorIndices.length > 0
-    ? `緑の丸が、選んだ候補を置ける場所です（${view.legalAnchorIndices.length}か所）。セル番号は予報と同じ番号です。`
+    ? isMobileViewport()
+      ? view.pending === null
+        ? '候補を選び、「盤面へ戻る」を押してから緑の丸をタップします。'
+        : '仮置きした場所を盤面で確認し、施工確定または取消を選びます。'
+      : `緑の丸が、選んだ候補を置ける場所です（${view.legalAnchorIndices.length}か所）。セル番号は予報と同じ番号です。`
     : '現在、選んだ候補を置ける場所はありません。見送りで水を進められます。';
   updateCellPicker(view, locked);
 
@@ -1220,6 +1355,9 @@ function render(): void {
   }
   retryButton.disabled = locked;
   stageMenuButton.disabled = playback !== null;
+  cameraLeftButton.disabled = playback !== null;
+  cameraRightButton.disabled = playback !== null;
+  cameraResetButton.disabled = playback !== null;
   pauseButton.disabled = playback !== null || view.snapshot.phase !== 'awaiting-turn';
   pauseButton.textContent = paused ? '再開' : '一時停止';
   pausePanel.hidden = !paused;
@@ -1232,8 +1370,11 @@ const pointerController = new PointerController(canvas, {
   onEnd: () => render(),
   onCancel: () => {
     if (playback !== null || paused) return;
-    controller.cancelPlacement();
-    lastMessage = '入力が取り消されたため、仮置きを解除しました。';
+    // A cancelled pointer stream must not erase an intentional pending
+    // placement. This can happen when the browser interrupts a touch gesture.
+    if (controller.view.pending !== null) {
+      lastMessage = '盤面操作が中断されました。仮置きは保持しています。';
+    }
     render();
   }
 });
@@ -1244,6 +1385,7 @@ candidateButtons.forEach((button, slot) => {
     if (playback !== null || paused) return;
     controller.selectCandidate(slot as CandidateSlot);
     lastMessage = `${slot === 0 ? '候補A' : '候補B'}を選択しました。`;
+    if (isMobileViewport()) setMobileControlsOpen(false);
     render();
   });
 });
@@ -1262,6 +1404,36 @@ cellPickerButtons.forEach((button) => {
     lastMessage = `セル${index + 1}に仮置きしました。施工確定で手番が進みます。`;
     render();
   });
+});
+
+cameraLeftButton.addEventListener('click', () => {
+  setCameraRotation(cameraRotation - 1);
+  lastMessage = '盤面を左へ90度回転しました。';
+  render();
+});
+
+cameraRightButton.addEventListener('click', () => {
+  setCameraRotation(cameraRotation + 1);
+  lastMessage = '盤面を右へ90度回転しました。';
+  render();
+});
+
+cameraResetButton.addEventListener('click', () => {
+  setCameraRotation(0);
+  lastMessage = '盤面を正面に戻しました。';
+  render();
+});
+
+mobileControlsToggle.addEventListener('click', () => {
+  setMobileControlsOpen(!mobileControlsOpen);
+});
+
+mobileControlsClose.addEventListener('click', () => {
+  setMobileControlsOpen(false);
+});
+
+mobileControlsBackdrop.addEventListener('click', () => {
+  setMobileControlsOpen(false);
 });
 
 rotateButton.addEventListener('click', () => {
@@ -1342,10 +1514,13 @@ retryButton.addEventListener('click', () => {
   savedStageSave = null;
   updateSavedGamePrompt();
   controller = new StageController(currentStage, selectedTimerMode);
+  cameraRotation = 0;
+  cameraLabel.textContent = cameraText(cameraRotation);
   activeConstructionVisual = null;
   activeTurnPlaybackVisual = null;
   lastTurnOutcome = null;
   lastMessage = 'まず緑の丸を1つ押して仮置きしてください。';
+  setMobileControlsOpen(true);
   startTurnTimer();
   render();
 });

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { BoardState } from '../../src/domain/board';
-import { CELL_COUNT } from '../../src/domain/constants';
+import { CELL_COUNT, Direction } from '../../src/domain/constants';
 import { getBuiltInStage } from '../../src/domain/stages';
 import {
   createIsometricLayout,
   CONSTRUCTION_TAP_TARGET_PX,
+  displayCoordinateForIndex,
+  displayDirection,
   getCellGeometry,
   hitTestCell,
   insetDiamond,
@@ -36,6 +38,26 @@ describe('isometric layout', () => {
       const center = getCellGeometry(layout, snapshot, index).center;
       expect(hitTestCell(layout, snapshot, center.x, center.y)).toBe(index);
     }
+  });
+
+  it('keeps hit testing aligned after every supported camera rotation', () => {
+    const snapshot = board();
+    for (const rotation of [0, 1, 2, 3] as const) {
+      const layout = createIsometricLayout(800, 600, { rotation });
+      for (let index = 0; index < CELL_COUNT; index += 1) {
+        const center = getCellGeometry(layout, snapshot, index).center;
+        expect(hitTestCell(layout, snapshot, center.x, center.y)).toBe(index);
+      }
+    }
+  });
+
+  it('rotates logical coordinates and edges together', () => {
+    expect(displayCoordinateForIndex(0, 1)).toEqual({ row: 0, column: 7 });
+    expect(displayCoordinateForIndex(0, 2)).toEqual({ row: 7, column: 7 });
+    expect(displayCoordinateForIndex(0, 3)).toEqual({ row: 7, column: 0 });
+    expect(displayDirection(Direction.North, 1)).toBe(Direction.East);
+    expect(displayDirection(Direction.North, 2)).toBe(Direction.South);
+    expect(displayDirection(Direction.North, 3)).toBe(Direction.West);
   });
 
   it('snaps a point just outside a top edge to the nearest cell', () => {

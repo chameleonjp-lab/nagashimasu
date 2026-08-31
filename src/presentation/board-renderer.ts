@@ -8,9 +8,9 @@ import type {
 import type { StageTracePhase, StageTurnPreview } from '../domain/stage-session';
 import type { ForecastCellView, StageCellRiskView } from './stage-projection';
 import {
+  displayDirection,
   getCellGeometry,
   insetDiamond,
-  projectCell,
   sortCellIndicesForDrawing
 } from './isometric';
 import type { IsometricCellGeometry, IsometricLayout, IsometricPoint } from './isometric';
@@ -40,6 +40,10 @@ export interface BoardRenderOptions {
   readonly resultText?: string;
   readonly objectiveLabel?: string;
   readonly objectiveProgress?: { readonly value: number; readonly target: number } | null;
+  readonly storageCells?: readonly number[];
+  readonly resultHighlightCells?: readonly number[];
+  /** When supplied, only these logical cells receive a number label. */
+  readonly labelCells?: readonly number[];
   readonly reducedMotion?: boolean;
   readonly background?: string;
 }
@@ -303,17 +307,19 @@ function drawRainAnimation(
 
 function drawEdgeMarker(
   context: CanvasRenderingContext2D,
+  rotation: IsometricLayout['rotation'],
   geometry: IsometricCellGeometry,
   mask: number,
   direction: Direction,
   color: string
 ): void {
   if ((mask & direction) === 0) return;
-  const edgeIndex = direction === Direction.North
+  const visibleDirection = displayDirection(direction, rotation);
+  const edgeIndex = visibleDirection === Direction.North
     ? 0
-    : direction === Direction.East
+    : visibleDirection === Direction.East
       ? 1
-      : direction === Direction.South
+      : visibleDirection === Direction.South
         ? 2
         : 3;
   const nextIndex = (edgeIndex + 1) % 4;
@@ -324,7 +330,7 @@ function drawEdgeMarker(
   context.moveTo(start.x, start.y);
   context.lineTo(end.x, end.y);
   context.strokeStyle = color;
-  context.lineWidth = 3;
+  context.lineWidth = 4;
   context.stroke();
 }
 
@@ -360,10 +366,23 @@ function flowTarget(
 ): IsometricPoint {
   const fromPoint = getCellGeometry(layout, snapshot, from).center;
   if (to !== null) return getCellGeometry(layout, snapshot, to).center;
-  const distance = layout.tileWidth * 0.75;
-  const horizontal = direction === Direction.East ? distance : direction === Direction.West ? -distance : 0;
-  const vertical = direction === Direction.South ? distance * 0.45 : direction === Direction.North ? -distance * 0.45 : 0;
-  return point(fromPoint.x + horizontal, fromPoint.y + vertical);
+  const geometry = getCellGeometry(layout, snapshot, from);
+  const visibleDirection = displayDirection(direction, layout.rotation);
+  const edgeIndex = visibleDirection === Direction.North
+    ? 0
+    : visibleDirection === Direction.East
+      ? 1
+      : visibleDirection === Direction.South
+        ? 2
+        : 3;
+  const start = geometry.top[edgeIndex];
+  const end = geometry.top[(edgeIndex + 1) % 4];
+  if (start === undefined || end === undefined) return fromPoint;
+  const edgeCenter = point((start.x + end.x) / 2, (start.y + end.y) / 2);
+  return point(
+    edgeCenter.x + (edgeCenter.x - fromPoint.x) * 0.75,
+    edgeCenter.y + (edgeCenter.y - fromPoint.y) * 0.75
+  );
 }
 
 function flowTransferColor(transfer: WaterTransfer): string {
@@ -718,7 +737,7 @@ function drawConstructionAnchorMarkers(
   snapshot: Pick<BoardSnapshot, 'terrain'>,
   anchorIndices: readonly number[]
 ): void {
-  const radius = Math.max(5, Math.min(8, Math.min(layout.tileWidth, layout.tileHeight) * 0.34));
+  const radius = Math.max(8, Math.min(13, Math.min(layout.tileWidth, layout.tileHeight) * 0.42));
   for (const index of anchorIndices) {
     if (!Number.isSafeInteger(index) || index < 0 || index >= CELL_COUNT) continue;
     const geometry = getCellGeometry(layout, snapshot, index);
@@ -729,6 +748,51 @@ function drawConstructionAnchorMarkers(
     context.strokeStyle = '#d7fff0';
     context.lineWidth = 1.5;
     context.stroke();
+  }
+}
+
+function drawStorageTarget(
+  context: CanvasRenderingContext2D,
+  layout: IsometricLayout,
+  snapshot: Pick<BoardSnapshot, 'terrain'>,
+  index: number,
+  waterAmount: number
+): void {
+  const geometry = getCellGeometry(layout, snapshot, index);
+  const target = insetDiamond(geometry.top, Math.max(2, layout.tileHeight * 0.12));
+  context.save();
+  context.setLineDash(waterAmount > 0 ? [] : [5, 4]);
+  fillPolygon(
+    context,
+    target,
+    waterAmount > 0 ? 'rgba(55, 190, 236, 0.12)' : 'rgba(55, 190, 236, 0.16)',
+    '#55d8ed',
+    2.2
+  );
+  context.restore();
+
+  context.font = `900 ${Math.max(10, Math.round(layout.tileHeight * 0.25))}px system-ui, sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillStyle = '#d8f7ff';
+  context.fillText(waterAmount > 0 ? '池' : '池へ', geometry.center.x, geometry.center.y);
+}
+
+function drawResultHighlight(
+  context: CanvasRenderingContext2D,
+  layout: IsometricLayout,
+  snapshot: Pick<BoardSnapshot, 'terrain'>,
+  indices: readonly number[]
+): void {
+  for (const index of indices) {
+    if (!Number.isSafeInteger(index) || index < 0 || index >= CELL_COUNT) continue;
+    const geometry = getCellGeometry(layout, snapshot, index);
+    fillPolygon(context, geometry.top, 'rgba(255, 92, 92, 0.28)', '#ff8f70', 3);
+    context.font = `900 ${Math.max(10, Math.round(layout.tileHeight * 0.24))}px system-ui, sans-serif`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillStyle = '#fff1ec';
+    context.fillText('漏れ', geometry.center.x, geometry.center.y - layout.tileHeight * 0.18);
   }
 }
 
@@ -764,7 +828,7 @@ export function renderIsometricBoard(
     terrain: terrain ?? snapshot.terrain
   };
   const waterSnapshot = preview?.valid ? preview.boardAfterNextFlow : snapshot;
-  const indices = sortCellIndicesForDrawing(renderSnapshot);
+  const indices = sortCellIndicesForDrawing(renderSnapshot, layout.rotation);
 
   for (const index of indices) {
     const geometry = getCellGeometry(layout, renderSnapshot, index);
@@ -779,7 +843,6 @@ export function renderIsometricBoard(
     const waterAmount = waterSnapshot.water[index] ?? 0;
     fillPolygon(context, geometry.top, terrainColor(geometry.terrain), 'rgba(8, 22, 31, 0.76)');
     drawTerrainDetails(context, geometry);
-    drawWaterPool(context, layout, geometry, waterAmount, 0);
 
     const flags = snapshot.cellFlags[index] ?? 0;
     if ((flags & CellFlag.Protected) !== 0) {
@@ -791,14 +854,26 @@ export function renderIsometricBoard(
       context.lineWidth = 1;
       context.stroke();
     }
-    drawEdgeMarker(context, geometry, snapshot.safeEdgeMask[index] ?? 0, Direction.North, '#8ee3cf');
-    drawEdgeMarker(context, geometry, snapshot.safeEdgeMask[index] ?? 0, Direction.East, '#8ee3cf');
-    drawEdgeMarker(context, geometry, snapshot.safeEdgeMask[index] ?? 0, Direction.South, '#8ee3cf');
-    drawEdgeMarker(context, geometry, snapshot.safeEdgeMask[index] ?? 0, Direction.West, '#8ee3cf');
-    drawEdgeMarker(context, geometry, snapshot.dangerEdgeMask[index] ?? 0, Direction.North, '#ff6b6b');
-    drawEdgeMarker(context, geometry, snapshot.dangerEdgeMask[index] ?? 0, Direction.East, '#ff6b6b');
-    drawEdgeMarker(context, geometry, snapshot.dangerEdgeMask[index] ?? 0, Direction.South, '#ff6b6b');
-    drawEdgeMarker(context, geometry, snapshot.dangerEdgeMask[index] ?? 0, Direction.West, '#ff6b6b');
+    drawEdgeMarker(context, layout.rotation, geometry, snapshot.safeEdgeMask[index] ?? 0, Direction.North, '#8ee3cf');
+    drawEdgeMarker(context, layout.rotation, geometry, snapshot.safeEdgeMask[index] ?? 0, Direction.East, '#8ee3cf');
+    drawEdgeMarker(context, layout.rotation, geometry, snapshot.safeEdgeMask[index] ?? 0, Direction.South, '#8ee3cf');
+    drawEdgeMarker(context, layout.rotation, geometry, snapshot.safeEdgeMask[index] ?? 0, Direction.West, '#8ee3cf');
+    drawEdgeMarker(context, layout.rotation, geometry, snapshot.dangerEdgeMask[index] ?? 0, Direction.North, '#ff6b6b');
+    drawEdgeMarker(context, layout.rotation, geometry, snapshot.dangerEdgeMask[index] ?? 0, Direction.East, '#ff6b6b');
+    drawEdgeMarker(context, layout.rotation, geometry, snapshot.dangerEdgeMask[index] ?? 0, Direction.South, '#ff6b6b');
+    drawEdgeMarker(context, layout.rotation, geometry, snapshot.dangerEdgeMask[index] ?? 0, Direction.West, '#ff6b6b');
+  }
+
+  // Water is rendered after every top face so a low but important pond is not
+  // visually swallowed by a neighbouring high tile.
+  for (const index of indices) {
+    const geometry = getCellGeometry(layout, renderSnapshot, index);
+    drawWaterPool(context, layout, geometry, waterSnapshot.water[index] ?? 0, 0);
+  }
+
+  for (const index of options.storageCells ?? []) {
+    if (!Number.isSafeInteger(index) || index < 0 || index >= CELL_COUNT) continue;
+    drawStorageTarget(context, layout, renderSnapshot, index, waterSnapshot.water[index] ?? 0);
   }
 
   drawRiskOverlay(context, layout, renderSnapshot, options.riskCells ?? []);
@@ -876,7 +951,8 @@ export function renderIsometricBoard(
     );
   }
 
-  drawBoardGridLabels(context, layout, renderSnapshot);
+  drawResultHighlight(context, layout, renderSnapshot, options.resultHighlightCells ?? []);
+  drawBoardGridLabels(context, layout, renderSnapshot, options.labelCells);
   drawConstructionAnchorMarkers(
     context,
     layout,
@@ -901,13 +977,16 @@ export function renderIsometricBoard(
 export function drawBoardGridLabels(
   context: CanvasRenderingContext2D,
   layout: IsometricLayout,
-  snapshot: Pick<BoardSnapshot, 'terrain'>
+  snapshot: Pick<BoardSnapshot, 'terrain'>,
+  labelCells?: readonly number[]
 ): void {
   context.font = `${Math.max(9, Math.round(layout.tileHeight * 0.22))}px system-ui, sans-serif`;
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillStyle = 'rgba(226, 243, 255, 0.5)';
+  const allowed = labelCells === undefined ? null : new Set(labelCells);
   for (let index = 0; index < CELL_COUNT; index += 1) {
+    if (allowed !== null && !allowed.has(index)) continue;
     const geometry = getCellGeometry(layout, snapshot, index);
     context.fillText(String(index + 1), geometry.center.x, geometry.center.y + layout.tileHeight * 0.25);
   }
