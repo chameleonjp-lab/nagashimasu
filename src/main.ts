@@ -62,6 +62,12 @@ const root = document.querySelector<HTMLDivElement>('#app');
 if (root === null) throw new Error('app root is missing');
 const appRoot = root;
 const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+const SUPABASE_URL = 'https://mlpnjgezrnhdxsxolyzj.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_drzcy0v97knU6FgjqSgBHw_0A9XPdFM';
+const GAME_SLUG = 'nagashimasu';
+const CLIENT_VERSION = 'nagashimasu-2026-08-31-platform';
+const LAB_URL = 'https://chameleonjp-lab.github.io/chameleonjp_lab/';
+const PLAYER_NAME_STORAGE_KEY = 'nagashimasu:player-name';
 
 const stage = getBuiltInStage('stage-01-first-pond');
 if (stage === undefined) throw new Error('built-in stage-01-first-pond is missing');
@@ -164,6 +170,17 @@ appRoot.innerHTML = `
         <p>候補は、地面をどう変えるかを示す工事パーツです。置いた場所で水の流れが変わります。</p>
         <p class="selected-stage-goal" id="selected-stage-goal"><strong>選択中のステージ「${currentStage.name}」:</strong> ${stageGoalExplanation(currentStage)}</p>
       </section>
+      <section class="player-name-card" aria-labelledby="player-name-title">
+        <h2 id="player-name-title">ランキングに参加する</h2>
+        <label for="player-name">プレイヤー名（必須）</label>
+        <input id="player-name" type="text" maxlength="20" autocomplete="name" placeholder="20文字以内で入力" required />
+        <p class="player-name-note" id="player-name-note">名前を入力するとゲームを開始できます。</p>
+      </section>
+      <div class="platform-actions" aria-label="ゲームの共有と実験場">
+        <button id="home-share" type="button">このゲームをシェア</button>
+        <span class="platform-status" id="home-share-status" role="status" aria-live="polite"></span>
+        <a class="platform-link" href="${LAB_URL}" target="_blank" rel="noopener noreferrer">カメレオンJPの実験場</a>
+      </div>
       <section class="tutorial-card" aria-labelledby="tutorial-title">
         <div class="tutorial-heading">
           <h2 id="tutorial-title">最初の1手</h2>
@@ -323,6 +340,19 @@ appRoot.innerHTML = `
         <p id="result-score"></p>
         <p id="result-reasons"></p>
         <p class="result-hint" id="result-hint"></p>
+        <section class="result-sharing" aria-labelledby="result-share-title">
+          <h3 id="result-share-title">結果をシェア</h3>
+          <p id="result-player" class="result-player"></p>
+          <textarea id="result-share-text" rows="5" readonly aria-label="結果のシェア文"></textarea>
+          <button id="result-share" type="button">シェア文をコピー</button>
+          <p id="result-share-status" class="platform-status" role="status" aria-live="polite"></p>
+        </section>
+        <section class="online-ranking" aria-labelledby="ranking-title">
+          <h3 id="ranking-title">上位10名</h3>
+          <ol id="ranking-list" class="ranking-list"></ol>
+          <p id="ranking-status" class="platform-status" role="status" aria-live="polite">結果を送信するとランキングを表示します。</p>
+        </section>
+        <a class="platform-link result-platform-link" href="${LAB_URL}" target="_blank" rel="noopener noreferrer">カメレオンJPの実験場へ</a>
         <button id="retry" type="button">もう一度</button>
         <button id="stage-menu" type="button">ステージ選択へ</button>
       </section>
@@ -352,6 +382,10 @@ const cameraResetButton = required<HTMLButtonElement>('#camera-reset');
 const cameraLabel = required<HTMLElement>('#camera-label');
 const startPanel = required<HTMLElement>('#start-panel');
 const gameShell = required<HTMLElement>('#game-shell');
+const playerNameInput = required<HTMLInputElement>('#player-name');
+const playerNameNote = required<HTMLElement>('#player-name-note');
+const homeShareButton = required<HTMLButtonElement>('#home-share');
+const homeShareStatus = required<HTMLElement>('#home-share-status');
 const gameTitleElement = required<HTMLElement>('#game-title');
 const selectedStageGoalElement = required<HTMLElement>('#selected-stage-goal');
 const tutorialSteps = required<HTMLOListElement>('#tutorial-steps');
@@ -416,6 +450,12 @@ const resultCause = required<HTMLElement>('#result-cause');
 const resultScore = required<HTMLElement>('#result-score');
 const resultReasons = required<HTMLElement>('#result-reasons');
 const resultHint = required<HTMLElement>('#result-hint');
+const resultPlayer = required<HTMLElement>('#result-player');
+const resultShareText = required<HTMLTextAreaElement>('#result-share-text');
+const resultShareButton = required<HTMLButtonElement>('#result-share');
+const resultShareStatus = required<HTMLElement>('#result-share-status');
+const rankingList = required<HTMLOListElement>('#ranking-list');
+const rankingStatus = required<HTMLElement>('#ranking-status');
 const retryButton = required<HTMLButtonElement>('#retry');
 const timerElement = required<HTMLElement>('#timer');
 const pauseButton = required<HTMLButtonElement>('#pause');
@@ -440,8 +480,169 @@ let selectedPlaybackSpeed: ProgressPlaybackSpeed = progress.playbackSpeed;
 let paused = false;
 let pageHidden = document.hidden;
 let turnTimer: TurnTimer | null = null;
-let mobileControlsOpen = false;
+let playerName = readPlayerName();
+let resultPlatformLoaded = false;
+let resultPlatformRequestId = 0;
 const PLAYBACK_SPEED_UNLOCK_STAGE_ID = 'stage-02-open-to-sea';
+
+interface RankingRow {
+  readonly display_name?: unknown;
+  readonly player_name?: unknown;
+  readonly score?: unknown;
+  readonly best_score?: unknown;
+}
+
+function cleanPlayerName(value: string): string {
+  return value.replace(/[\u0000-\u001f\u007f]/gu, '').trim().slice(0, 20);
+}
+
+function readPlayerName(): string {
+  try {
+    return cleanPlayerName(localStorage.getItem(PLAYER_NAME_STORAGE_KEY) ?? '');
+  } catch {
+    return '';
+  }
+}
+
+function savePlayerName(value: string): void {
+  playerName = cleanPlayerName(value);
+  try {
+    if (playerName.length > 0) localStorage.setItem(PLAYER_NAME_STORAGE_KEY, playerName);
+    else localStorage.removeItem(PLAYER_NAME_STORAGE_KEY);
+  } catch {
+    // The name still applies to the current session when storage is unavailable.
+  }
+}
+
+function currentGameUrl(): string {
+  return new URL(window.location.href).toString().split('#')[0] ?? window.location.href;
+}
+
+function homeShareMessage(): string {
+  return `ナガシマスで雨水の流れを読み、街を守ろう！\n${currentGameUrl()}\n#ナガシマス #ミニゲーム`;
+}
+
+function resultShareMessage(stageName: string, phase: 'cleared' | 'failed', score: { readonly total: number; readonly safety: number; readonly efficiency: number; readonly control: number; readonly grade: string | null }, objectiveProgress: { readonly value: number; readonly target: number }): string {
+  const resultLabel = phase === 'cleared' ? 'クリア' : '挑戦結果';
+  return `${playerName}さんのナガシマス「${stageName}」${resultLabel}：${score.total}点（安全${score.safety}・効率${score.efficiency}・制御${score.control}／評価${score.grade ?? '-'}）。目標進捗${objectiveProgress.value}/${objectiveProgress.target}\n${currentGameUrl()}\n#ナガシマス #ミニゲーム`;
+}
+
+async function shareOrCopy(text: string, statusElement: HTMLElement, textElement?: HTMLTextAreaElement): Promise<void> {
+  statusElement.textContent = '';
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'ナガシマス', text, url: currentGameUrl() });
+      statusElement.textContent = '共有しました。';
+      return;
+    } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+    }
+  }
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
+    await navigator.clipboard.writeText(text);
+    statusElement.textContent = 'シェア文をコピーしました。';
+  } catch {
+    if (textElement !== undefined) {
+      textElement.focus();
+      textElement.select();
+    }
+    statusElement.textContent = 'シェア文を選択しました。コピーしてご利用ください。';
+  }
+}
+
+async function callRankingRpc(name: string, payload: Record<string, unknown>): Promise<unknown> {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+  const body = await response.text();
+  let data: unknown = null;
+  try {
+    data = body.length > 0 ? JSON.parse(body) : null;
+  } catch {
+    data = body;
+  }
+  if (!response.ok) throw new Error(`${name}: ${response.status}`);
+  return data;
+}
+
+function rankingRows(data: unknown): readonly RankingRow[] {
+  return Array.isArray(data) ? data.slice(0, 10) as RankingRow[] : [];
+}
+
+function renderPlayerNameState(): void {
+  playerNameInput.value = playerName;
+  const valid = playerName.length > 0;
+  playerNameNote.textContent = valid
+    ? `${playerName}さんの名前でランキングに参加します。`
+    : '名前を入力するとゲームを開始できます。';
+  startGameButton.disabled = !valid;
+  resumeSavedGameButton.disabled = !valid;
+}
+
+async function submitAndLoadRanking(phase: 'cleared' | 'failed', score: { readonly total: number; readonly safety: number; readonly efficiency: number; readonly control: number; readonly grade: string | null }, objectiveProgress: { readonly value: number; readonly target: number }, requestId: number): Promise<void> {
+  const isCurrentRequest = (): boolean => requestId === resultPlatformRequestId;
+  resultPlayer.textContent = `${playerName}さんの結果`;
+  resultShareText.value = resultShareMessage(currentStage.name, phase, score, objectiveProgress);
+  resultShareButton.disabled = playerName.length === 0;
+  rankingList.replaceChildren();
+  rankingStatus.textContent = 'ランキングを更新中…';
+  try {
+    await callRankingRpc('submit_score', {
+      p_display_name: playerName,
+      p_game_slug: GAME_SLUG,
+      p_score: Math.trunc(score.total),
+      p_client_version: CLIENT_VERSION
+    });
+  } catch {
+    if (!isCurrentRequest()) return;
+    rankingStatus.textContent = '今回のスコアを送信できませんでした。ランキングを表示します。';
+  }
+  if (!isCurrentRequest()) return;
+  try {
+    const rows = rankingRows(await callRankingRpc('get_best_score_ranking', { p_game_slug: GAME_SLUG, p_limit: 10 }));
+    if (!isCurrentRequest()) return;
+    if (rows.length === 0) {
+      const item = document.createElement('li');
+      item.textContent = 'まだランキングがありません。';
+      rankingList.append(item);
+    } else {
+      rows.forEach((row) => {
+        const item = document.createElement('li');
+        const name = typeof row.display_name === 'string'
+          ? row.display_name
+          : typeof row.player_name === 'string' ? row.player_name : 'ななし';
+        const rawScore = row.score ?? row.best_score;
+        const numericScore = Number(rawScore);
+        item.textContent = `${name}：${Number.isFinite(numericScore) ? Math.trunc(numericScore) : '—'}点`;
+        rankingList.append(item);
+      });
+    }
+    if (rankingStatus.textContent === 'ランキングを更新中…') rankingStatus.textContent = '上位10名を表示しています。';
+  } catch {
+    if (!isCurrentRequest()) return;
+    rankingList.replaceChildren();
+    const item = document.createElement('li');
+    item.textContent = 'ランキングを読み込めませんでした。';
+    rankingList.append(item);
+    rankingStatus.textContent = 'ランキングを読み込めませんでした。';
+  }
+}
+
+function requirePlayerName(): boolean {
+  if (playerName.length > 0) return true;
+  renderPlayerNameState();
+  playerNameInput.focus();
+  return false;
+}
+
+let mobileControlsOpen = false;
 
 function isMobileViewport(): boolean {
   return window.matchMedia('(max-width: 759px)').matches;
@@ -682,6 +883,7 @@ function resumeGame(): void {
 }
 
 function resumeSavedGame(): void {
+  if (!requirePlayerName()) return;
   const save = savedStageSave;
   if (save === null) return;
   const definition = stageForSave(save);
@@ -718,6 +920,7 @@ function resumeSavedGame(): void {
 }
 
 function startSelectedStage(): void {
+  if (!requirePlayerName()) return;
   const selected = getBuiltInStage(selectedStageId);
   if (selected === undefined || !isStageUnlocked(selected.id, clearedStageIds(progress))) {
     updateStagePicker();
@@ -1352,6 +1555,21 @@ function render(): void {
       ? '危険を抑え、安全な流れを作れました。'
       : view.snapshot.failureReasons.map(failureReasonText).join('／');
     resultHint.textContent = resultImprovementHint(resultInput);
+    if (!resultPlatformLoaded) {
+      resultPlatformLoaded = true;
+      resultPlatformRequestId += 1;
+      void submitAndLoadRanking(
+        view.snapshot.phase,
+        view.snapshot.score,
+        objectiveProgress,
+        resultPlatformRequestId
+      );
+    }
+  } else {
+    if (resultPlatformLoaded) {
+      resultPlatformLoaded = false;
+      resultPlatformRequestId += 1;
+    }
   }
   retryButton.disabled = locked;
   stageMenuButton.disabled = playback !== null;
@@ -1506,7 +1724,7 @@ undoButton.addEventListener('click', () => {
 });
 
 retryButton.addEventListener('click', () => {
-  if (playback !== null || paused) return;
+  if (playback !== null || paused || !requirePlayerName()) return;
   stopTurnTimer();
   paused = false;
   pausePanel.hidden = true;
@@ -1553,6 +1771,16 @@ tutorialToggle.addEventListener('click', () => {
 startGameButton.addEventListener('click', startSelectedStage);
 resumeSavedGameButton.addEventListener('click', resumeSavedGame);
 stageMenuButton.addEventListener('click', showStagePicker);
+playerNameInput.addEventListener('input', () => {
+  savePlayerName(playerNameInput.value);
+  renderPlayerNameState();
+});
+homeShareButton.addEventListener('click', () => {
+  void shareOrCopy(homeShareMessage(), homeShareStatus);
+});
+resultShareButton.addEventListener('click', () => {
+  void shareOrCopy(resultShareText.value, resultShareStatus, resultShareText);
+});
 
 timerModeSelect.addEventListener('change', () => {
   const value = timerModeSelect.value;
@@ -1613,3 +1841,4 @@ if (!gameShell.hidden) resizeCanvas();
 updateStagePicker();
 updateSavedGamePrompt();
 updateTutorialVisibility();
+renderPlayerNameState();
