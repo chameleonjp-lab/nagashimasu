@@ -35,14 +35,11 @@ import type {
 import type { BoardSnapshot } from './domain/types';
 import { BUILT_IN_STAGES, getBuiltInStage } from './domain/stages';
 import type { ValidatedStageDefinition } from './domain/stage-definition';
-import {
-  createIsometricLayout,
-  hitTestCell,
-  normalizeIsometricRotation
-} from './presentation/isometric';
 import { PointerController } from './presentation/pointer-controller';
-import { renderIsometricBoard } from './presentation/board-renderer';
-import type { ConstructionVisual } from './presentation/board-renderer';
+import type {
+  BoardRenderOptions,
+  ConstructionVisual
+} from './presentation/board-view-contract';
 import { buildStageProjection, riskLabel } from './presentation/stage-projection';
 import { buildStagePreviewSummary } from './presentation/stage-preview';
 import {
@@ -56,7 +53,9 @@ import {
 import type { TurnOutcomeSummary } from './presentation/turn-outcome';
 import { TracePlayback, tracePlaybackDurations } from './presentation/trace-playback';
 import type { TracePlaybackFrame } from './presentation/trace-playback';
-import type { IsometricLayout, IsometricRotation } from './presentation/isometric';
+import { normalizeBoardRotation } from './presentation/three-board-math';
+import type { BoardRotation } from './presentation/three-board-math';
+import type { ThreeBoardView } from './presentation/three-board-view';
 
 const root = document.querySelector<HTMLDivElement>('#app');
 if (root === null) throw new Error('app root is missing');
@@ -258,6 +257,13 @@ appRoot.innerHTML = `
     </header>
     <section class="game-stage" aria-label="治水盤面">
       <canvas class="game-canvas" id="board" aria-label="8×8の治水盤面"></canvas>
+      <div class="board-view-state" id="board-view-state" role="status" aria-live="polite" hidden>
+        <p id="board-view-state-text"></p>
+        <div class="board-view-state-actions">
+          <button id="board-view-retry" type="button">3D表示を再生成</button>
+          <button id="board-view-stage-menu" type="button">ステージ選択へ戻る</button>
+        </div>
+      </div>
       <div class="camera-controls" aria-label="盤面の向き">
         <button id="camera-left" type="button" aria-label="盤面を左へ90度回転">↶</button>
         <span id="camera-label">盤面 1 / 4</span>
@@ -367,10 +373,11 @@ function required<T extends Element>(selector: string): T {
 }
 
 const canvas = required<HTMLCanvasElement>('#board');
-const context = canvas.getContext('2d');
-if (context === null) throw new Error('2D canvas context is unavailable');
-const canvasContext = context;
 const stageElement = required<HTMLElement>('.game-stage');
+const boardViewStateElement = required<HTMLElement>('#board-view-state');
+const boardViewStateText = required<HTMLElement>('#board-view-state-text');
+const boardViewRetryButton = required<HTMLButtonElement>('#board-view-retry');
+const boardViewStageMenuButton = required<HTMLButtonElement>('#board-view-stage-menu');
 const gameControls = required<HTMLElement>('#game-controls');
 const mobileControlsBackdrop = required<HTMLElement>('#mobile-controls-backdrop');
 const mobileControlsToggle = required<HTMLButtonElement>('#mobile-controls-toggle');
@@ -463,8 +470,13 @@ const pausePanel = required<HTMLElement>('#pause-panel');
 const pauseMessage = required<HTMLElement>('#pause-message');
 const resumeButton = required<HTMLButtonElement>('#resume');
 
-let layout: IsometricLayout | null = null;
-let cameraRotation: IsometricRotation = 0;
+let boardView: ThreeBoardView | null = null;
+let boardViewLoading: Promise<ThreeBoardView | null> | null = null;
+let boardViewState: 'ready' | 'loading' | 'error' | 'context-lost' = 'ready';
+let boardViewInputLocked = false;
+let timerPausedForBoardRecovery = false;
+let playbackPausedForBoardRecovery = false;
+let cameraRotation: BoardRotation = 0;
 let lastMessage = 'まず緑の丸を1つ押して仮置きしてください。';
 let lastTurnOutcome: TurnOutcomeSummary | null = null;
 let activeConstructionVisual: ConstructionVisual | null = null;
@@ -490,6 +502,102 @@ interface RankingRow {
   readonly player_name?: unknown;
   readonly score?: unknown;
   readonly best_score?: unknown;
+}
+
+function setBoardViewState(nextState: typeof boardViewState, message = ''): void {
+  boardViewState = nextState;
+  boardViewStateElement.hidden = nextState === 'ready';
+  boardViewStateElement.dataset['state'] = nextState;
+  boardViewStateText.textContent = message;
+  const showActions = nextState === 'error' || nextState === 'context-lost';
+  boardViewRetryButton.hidden = !showActions;
+  boardViewStageMenuButton.hidden = !showActions;
+}
+
+function handleBoardViewContextLost(): void {
+  boardViewInputLocked = true;
+  timerPausedForBoardRecovery = !paused && (turnTimer?.active ?? false);
+  if (timerPausedForBoardRecovery) turnTimer?.pause();
+  playbackPausedForBoardRecovery = playback?.active ?? false;
+  if (playbackPausedForBoardRecovery) playback?.pause();
+  setBoardViewState('context-lost', '3D表示が中断されました');
+  render();
+}
+
+function handleBoardViewContextRestored(): void {
+  boardViewInputLocked = false;
+  setBoardViewState('ready');
+  continueAfterBoardReady(boardView);
+  render();
+}
+
+function handleBoardViewInitializationError(_error: unknown): void {
+  boardViewInputLocked = true;
+  setBoardViewState('error', '3D表示を開始できませんでした');
+}
+
+function ensureBoardView(): Promise<ThreeBoardView | null> {
+  if (boardView !== null && boardViewState === 'ready') {
+    resizeCanvas();
+    return Promise.resolve(boardView);
+  }
+  if (boardView !== null && boardViewState === 'context-lost') {
+    return Promise.resolve(boardView);
+  }
+  if (boardViewLoading !== null) return boardViewLoading;
+
+  setBoardViewState('loading', '3D盤面を準備中…');
+  const loading = import('./presentation/three-board-view')
+    .then(({ ThreeBoardView }) => {
+      if (boardView === null) {
+        boardView = new ThreeBoardView(canvas, {
+          onInitializationError: handleBoardViewInitializationError,
+          onContextLost: handleBoardViewContextLost,
+          onContextRestored: handleBoardViewContextRestored,
+          onCameraFrame: render
+        });
+      }
+      boardViewInputLocked = false;
+      setBoardViewState('ready');
+      resizeCanvas();
+      return boardView;
+    })
+    .catch((error: unknown) => {
+      handleBoardViewInitializationError(error);
+      render();
+      return null;
+    })
+    .finally(() => {
+      boardViewLoading = null;
+    });
+  boardViewLoading = loading;
+  return loading;
+}
+
+function ensureBoardAndStartTimer(): void {
+  void ensureBoardView().then(continueAfterBoardReady);
+}
+
+function continueAfterBoardReady(view: ThreeBoardView | null): void {
+  if (playbackPausedForBoardRecovery) {
+    playbackPausedForBoardRecovery = false;
+    playback?.resume();
+  }
+  if (
+    view === null ||
+    gameShell.hidden ||
+    paused ||
+    pageHidden ||
+    playback !== null ||
+    boardViewInputLocked
+  ) return;
+  if (timerPausedForBoardRecovery && turnTimer?.paused) {
+    timerPausedForBoardRecovery = false;
+    turnTimer.resume();
+    return;
+  }
+  timerPausedForBoardRecovery = false;
+  if (controller.view.snapshot.phase === 'awaiting-turn') startTurnTimer();
 }
 
 function cleanPlayerName(value: string): string {
@@ -661,19 +769,17 @@ function setMobileControlsOpen(open: boolean): void {
   }
 }
 
-function cameraText(rotation: IsometricRotation): string {
+function cameraText(rotation: BoardRotation): string {
   return `盤面 ${rotation + 1} / 4`;
 }
 
 function setCameraRotation(nextRotation: number): void {
-  cameraRotation = normalizeIsometricRotation(nextRotation);
+  cameraRotation = normalizeBoardRotation(nextRotation);
   cameraLabel.textContent = cameraText(cameraRotation);
-  if (layout !== null) {
-    layout = createIsometricLayout(layout.viewportWidth, layout.viewportHeight, {
-      padding: 16,
-      rotation: cameraRotation
-    });
-  }
+  boardView?.setRotation(cameraRotation, {
+    reducedMotion: reducedMotionQuery.matches,
+    durationMs: 200
+  });
 }
 
 function updateMobileStagePrompt(view: StageControllerView): void {
@@ -684,7 +790,7 @@ function updateMobileStagePrompt(view: StageControllerView): void {
     return;
   }
   mobileControlsToggle.hidden = false;
-  mobileControlsToggle.disabled = playback !== null;
+  mobileControlsToggle.disabled = playback !== null || boardViewState !== 'ready' || boardViewInputLocked;
   if (playback !== null) {
     mobileStagePrompt.textContent = '工事・雨・水流を見ています。';
     mobileControlsToggle.textContent = '操作を閉じる';
@@ -846,6 +952,8 @@ function startTurnTimer(): void {
     paused ||
     pageHidden ||
     playback !== null ||
+    boardViewInputLocked ||
+    boardView === null ||
     controller.view.snapshot.phase !== 'awaiting-turn'
   ) {
     render();
@@ -899,6 +1007,8 @@ function resumeSavedGame(): void {
   activeConstructionVisual = null;
   activeTurnPlaybackVisual = null;
   stopTurnTimer();
+  timerPausedForBoardRecovery = false;
+  playbackPausedForBoardRecovery = false;
   paused = false;
   pausePanel.hidden = true;
   currentStage = definition;
@@ -916,7 +1026,7 @@ function resumeSavedGame(): void {
   gameShell.hidden = false;
   setMobileControlsOpen(true);
   resizeCanvas();
-  startTurnTimer();
+  ensureBoardAndStartTimer();
 }
 
 function startSelectedStage(): void {
@@ -931,6 +1041,8 @@ function startSelectedStage(): void {
   activeConstructionVisual = null;
   activeTurnPlaybackVisual = null;
   stopTurnTimer();
+  timerPausedForBoardRecovery = false;
+  playbackPausedForBoardRecovery = false;
   paused = false;
   pausePanel.hidden = true;
   currentStage = selected;
@@ -950,12 +1062,21 @@ function startSelectedStage(): void {
   gameShell.hidden = false;
   setMobileControlsOpen(true);
   resizeCanvas();
-  startTurnTimer();
+  ensureBoardAndStartTimer();
 }
 
-function showStagePicker(): void {
-  if (playback !== null) return;
+function showStagePicker(force = false): void {
+  if (playback !== null && !force) return;
+  if (force && playback !== null) {
+    playback.cancel();
+    playback = null;
+    activeConstructionVisual = null;
+    activeTurnPlaybackVisual = null;
+    playbackPausedForBoardRecovery = false;
+  }
   stopTurnTimer();
+  timerPausedForBoardRecovery = false;
+  playbackPausedForBoardRecovery = false;
   paused = false;
   pausePanel.hidden = true;
   controller.cancelPlacement();
@@ -1170,6 +1291,7 @@ function startPlayback(
   playback?.cancel();
   activeConstructionVisual = constructionVisual;
   activeTurnPlaybackVisual = turnPlaybackVisual;
+  playbackPausedForBoardRecovery = false;
   const outcome = buildTurnOutcomeSummary({
     construction,
     trace: execution.trace,
@@ -1186,6 +1308,7 @@ function startPlayback(
     onFrame: () => render(),
     onComplete: () => {
       playback = null;
+      playbackPausedForBoardRecovery = false;
       activeConstructionVisual = null;
       activeTurnPlaybackVisual = null;
       lastTurnOutcome = outcome;
@@ -1222,36 +1345,21 @@ function resizeCanvas(): void {
   const width = Math.max(1, bounds.width);
   const height = Math.max(1, bounds.height);
   const devicePixelRatio = Math.min(2, window.devicePixelRatio || 1);
-  canvas.width = Math.max(1, Math.round(width * devicePixelRatio));
-  canvas.height = Math.max(1, Math.round(height * devicePixelRatio));
-  canvasContext.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-  layout = createIsometricLayout(width, height, {
-    padding: 16,
-    rotation: cameraRotation
-  });
+  boardView?.resize(width, height, devicePixelRatio);
   render();
 }
 
-function localPoint(clientX: number, clientY: number): { readonly x: number; readonly y: number } {
-  const bounds = canvas.getBoundingClientRect();
-  return Object.freeze({ x: clientX - bounds.left, y: clientY - bounds.top });
-}
-
 function selectCellAt(clientX: number, clientY: number): void {
-  if (layout === null || playback !== null || paused) return;
+  if (
+    boardView === null ||
+    boardViewState !== 'ready' ||
+    boardViewInputLocked ||
+    playback !== null ||
+    paused
+  ) return;
   const view = controller.view;
   if (view.snapshot.phase !== 'awaiting-turn') return;
-  const point = localPoint(clientX, clientY);
-  const inputSnapshot: Pick<typeof view.snapshot.board, 'terrain'> = {
-    terrain: view.preview?.terrainAfterConstruction ?? view.snapshot.board.terrain
-  };
-  const cell = hitTestCell(
-    layout,
-    inputSnapshot,
-    point.x,
-    point.y,
-    view.legalAnchorIndices
-  );
+  const cell = boardView.pickCell(clientX, clientY, view.legalAnchorIndices);
   if (cell !== null) {
     controller.setAnchor(cell);
     lastMessage = `セル${cell + 1}に仮置きしました。施工確定で手番が進みます。`;
@@ -1372,11 +1480,11 @@ function updateCellPicker(view: StageControllerView, locked: boolean): void {
 }
 
 function render(): void {
-  const currentLayout = layout;
-  if (currentLayout === null) return;
   const view = controller.view;
   const playbackFrame: TracePlaybackFrame | null = playback?.frame ?? null;
-  const locked = playback !== null || paused;
+  const boardTransitioning = boardView?.isCameraTransitioning ?? false;
+  const locked = playback !== null || paused || boardViewState !== 'ready' ||
+    boardViewInputLocked || boardTransitioning;
   const board = boardForPlayback(view, playbackFrame);
   const objectiveProgress = getStageObjectiveProgress(
     currentStage,
@@ -1407,7 +1515,7 @@ function render(): void {
       (view.snapshot.board.cellFlags[index] ?? 0) !== 0 ? [index] : []
     )
   ];
-  renderIsometricBoard(canvasContext, board, currentLayout, {
+  const boardOptions: BoardRenderOptions = {
     selectedCell: view.pending?.anchorIndex ?? null,
     preview: view.preview,
     constructionAnchorCells: playback === null ? view.legalAnchorIndices : [],
@@ -1418,7 +1526,7 @@ function render(): void {
     riskCells: projection.risks,
     playbackProgress: playbackFrame?.progress ?? null,
     phase: playbackFrame?.phase ?? null,
-    constructionVisual: activeConstructionVisual,
+    constructionVisual: activeConstructionVisual ?? constructionVisualForView(view),
     resultPhase: playback === null &&
       (view.snapshot.phase === 'cleared' || view.snapshot.phase === 'failed')
       ? view.snapshot.phase
@@ -1430,7 +1538,10 @@ function render(): void {
     resultHighlightCells,
     labelCells,
     reducedMotion: reducedMotionQuery.matches
-  });
+  };
+  if (boardView !== null && boardViewState === 'ready') {
+    boardView.render(board, boardOptions);
+  }
 
   gameTitleElement.textContent = `ナガシマス — ${currentStage.name}`;
   const phaseText = playbackFrame?.phase === null || playbackFrame?.phase === undefined
@@ -1573,10 +1684,10 @@ function render(): void {
   }
   retryButton.disabled = locked;
   stageMenuButton.disabled = playback !== null;
-  cameraLeftButton.disabled = playback !== null;
-  cameraRightButton.disabled = playback !== null;
-  cameraResetButton.disabled = playback !== null;
-  pauseButton.disabled = playback !== null || view.snapshot.phase !== 'awaiting-turn';
+  cameraLeftButton.disabled = locked;
+  cameraRightButton.disabled = locked;
+  cameraResetButton.disabled = locked;
+  pauseButton.disabled = locked || view.snapshot.phase !== 'awaiting-turn';
   pauseButton.textContent = paused ? '再開' : '一時停止';
   pausePanel.hidden = !paused;
   resumeButton.disabled = pageHidden;
@@ -1726,6 +1837,8 @@ undoButton.addEventListener('click', () => {
 retryButton.addEventListener('click', () => {
   if (playback !== null || paused || !requirePlayerName()) return;
   stopTurnTimer();
+  timerPausedForBoardRecovery = false;
+  playbackPausedForBoardRecovery = false;
   paused = false;
   pausePanel.hidden = true;
   clearStageSave();
@@ -1739,7 +1852,7 @@ retryButton.addEventListener('click', () => {
   lastTurnOutcome = null;
   lastMessage = 'まず緑の丸を1つ押して仮置きしてください。';
   setMobileControlsOpen(true);
-  startTurnTimer();
+  ensureBoardAndStartTimer();
   render();
 });
 
@@ -1770,7 +1883,16 @@ tutorialToggle.addEventListener('click', () => {
 
 startGameButton.addEventListener('click', startSelectedStage);
 resumeSavedGameButton.addEventListener('click', resumeSavedGame);
-stageMenuButton.addEventListener('click', showStagePicker);
+stageMenuButton.addEventListener('click', () => showStagePicker());
+boardViewRetryButton.addEventListener('click', () => {
+  if (boardViewLoading !== null) return;
+  boardView?.destroy();
+  boardView = null;
+  boardViewInputLocked = true;
+  ensureBoardAndStartTimer();
+  render();
+});
+boardViewStageMenuButton.addEventListener('click', () => showStagePicker(true));
 playerNameInput.addEventListener('input', () => {
   savePlayerName(playerNameInput.value);
   renderPlayerNameState();

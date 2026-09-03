@@ -1,12 +1,12 @@
 # ナガシマス 実装構成図
 
 - **状態:** P0再設計対応中
-- **更新日:** 2026-08-31（JST）
+- **更新日:** 2026-09-03（JST）
 - **対象:** `chameleonjp-lab/nagashimasu`
 
 ## この文書の目的
 
-前回までの実装は、水流計算、画面、入力、再生、保存が動作していた一方で、画面に情報を追加するたびに`main.ts`へ処理が集まり、プレイヤーが見る順番を設計しにくくなっていた。
+前回までの実装は、水流計算、画面、入力、再生、保存が動作していた一方で、画面に情報を追加するたびに`main.ts`へ処理が集まり、プレイヤーが見る順番を設計しにくくなっていた。今回、盤面本体をThree.js WebGLへ移行し、表示入力契約と3D表示責任を分離した。
 
 この文書では、ゲームの責任範囲を「ルール」「手番の進行」「表示」「入力」「保存」に分ける。ゲーム内容を変えずに画面を作り直すときも、どの層を変更したかを追跡できるようにする。
 
@@ -32,7 +32,7 @@ flowchart TD
 | 手番の進行 | `src/application/stage-controller.ts` | 入力を受け、Domainへ1回だけ渡し、受理結果を返す | 表示用に水流を再計算する |
 | 保存 | `src/application/*-storage.ts`、`stage-save.ts` | 進捗と受理済み操作を保存・復元する | 未受理の入力を進行状態として保存する |
 | 表示用変換 | `src/presentation/stage-projection.ts`、`stage-preview.ts` | 予報、危険度、説明文をDomainの結果から作る | 独自の勝敗判定を作る |
-| 盤面表示 | `src/presentation/isometric.ts`、`board-renderer.ts` | 同じ座標変換で描画とヒットテストを行う | 画面上だけのセル番号を作る |
+| 盤面表示 | `src/presentation/board-view-contract.ts`、`three-board-math.ts`、`three-board-frame.ts`、`three-board-view.ts` | 正本のsnapshot、preview、projection、traceをThree.jsの立体表示と入力へ変換する | 水流、排水、危険度、勝敗を独自に計算する |
 | 画面進行 | `src/main.ts` | 画面の表示段階、ボタン、再生の開始・終了をつなぐ | 水流の規則を直接実装する |
 | 検査 | `tests/unit/`、`tests/dist/` | 各層の契約と配布物を検査する | CI成功だけで実機合格と扱う |
 
@@ -73,20 +73,22 @@ stateDiagram-v2
 
 ## 盤面カメラの構成
 
-カメラは、描画と入力で別々に持たない。`IsometricLayout.rotation`を唯一の向きとして使う。
+カメラは、描画と入力で別々に持たない。`ThreeBoardView`の`BoardRotation`（0〜3）を唯一の向きとして使う。描画方式に関する旧ADR 0003の記述はADR 0018でThree.jsへ置き換えたが、Domain境界、入力、仮置き、確定、再生の契約は引き続き有効である。
 
 ```mermaid
 flowchart LR
-  Camera[左回転・右回転・正面] --> Layout[IsometricLayout]
-  Layout --> Draw[Canvas描画]
-  Layout --> Hit[セルのヒットテスト]
-  Layout --> Flow[雨と水流の表示]
+  Camera[左回転・右回転・正面] --> Fit[OrthographicCameraの4方向fit]
+  Fit --> Draw[Three.js WebGL描画]
+  Fit --> Hit[Raycasterと合法セル近接判定]
+  Fit --> Flow[雨と水流の表示]
 ```
 
 - 回転は90度単位の4方向とする。
 - 回転しても論理セル番号、雨予報、施工可能セルは変わらない。
 - 危険辺と安全辺は、論理方向を表示方向へ変換して描画する。
-- 自由な3D回転や拡大縮小は、4方向表示の実機確認後に判断する。
+- 自由な3D回転、ピンチ拡大、端末傾き操作は導入しない。
+- 施工可能セルは投影した中心を44 CSS px（半径22 CSS px）で先に判定し、該当しない場合だけセル専用MeshへRaycasterを使う。
+- 盤面、雨雲、水流の上空余白を含むカメラfitを計算し、320〜430px幅と横画面で切れないことを純粋な数学テストで確認する。
 
 ## 実装組織の標準形
 
@@ -122,6 +124,9 @@ flowchart LR
 - スマートフォンの操作を、画面下の操作シートへ分ける土台を追加した。
 - 凡例とセル番号表を補助情報として折りたためる構造へ変更した。
 - ポインター中断で仮置きを勝手に消さないようにした。
+- 盤面本体をThree.js 0.185.1のWebGLRenderer、Scene、OrthographicCameraへ置き換えた。
+- Three.js本体をゲーム開始・保存再開時のdynamic importで遅延読み込みし、初期化失敗とcontext lost/restoredを盤面内の状態表示へつないだ。
+- Geometry、Material、Texture、Sprite、Renderer、カメラ補間を管理し、再描画で無制限に生成しない構成にした。
 
 ### 次の検査で確認すること
 
@@ -131,6 +136,8 @@ flowchart LR
 - 空の池、雨、水面、流出位置が実機で見分けられること。
 - ポインター中断後も仮置きが保持されること。
 - 終端時に結果シートが最初に見え、再挑戦へ進めること。
+- WebGL初期化失敗、context lost/restored、再生成後もゲーム状態・仮置き・保存を失わないこと。
+- iPhone実機で通常盤面と水流再生の視認性、renderer.infoの増加がないこと。
 
 ## 合格条件
 

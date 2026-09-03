@@ -721,6 +721,38 @@ button:disabled {
   background: #071521;
 }
 
+.board-view-state {
+  position: absolute;
+  inset: 12px;
+  z-index: 5;
+  display: grid;
+  place-content: center;
+  gap: 10px;
+  border: 1px solid rgba(180, 235, 255, 0.3);
+  border-radius: 16px;
+  padding: 20px;
+  color: #eef8ff;
+  background: rgba(7, 21, 33, 0.92);
+  text-align: center;
+}
+
+.board-view-state p {
+  margin: 0;
+  color: #c8f1ff;
+  font-weight: 800;
+}
+
+.board-view-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.board-view-state-actions button {
+  border-color: #ffd166;
+}
+
 .camera-controls {
   position: absolute;
   top: 10px;

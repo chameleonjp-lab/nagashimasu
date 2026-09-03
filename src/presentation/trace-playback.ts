@@ -133,6 +133,8 @@ export class TracePlayback {
   private readonly callbacks: TracePlaybackCallbacks;
   private animationFrameId: number | null = null;
   private startedAt = 0;
+  private elapsedValue = 0;
+  private pausedValue = false;
   private frameValue: TracePlaybackFrame;
 
   public constructor(
@@ -153,23 +155,49 @@ export class TracePlayback {
     return this.animationFrameId !== null;
   }
 
+  public get paused(): boolean {
+    return this.pausedValue;
+  }
+
   public start(): void {
-    if (this.active) return;
+    if (this.active || this.pausedValue) return;
     if (this.timeline.length === 0) {
       this.callbacks.onComplete();
       return;
     }
     this.startedAt = performance.now();
+    this.elapsedValue = 0;
+    this.animationFrameId = requestAnimationFrame(this.tick);
+  }
+
+  /** Pauses presentation time without dropping the current trace frame. */
+  public pause(): void {
+    if (this.pausedValue || this.animationFrameId === null) return;
+    this.elapsedValue = Math.max(0, performance.now() - this.startedAt);
+    cancelAnimationFrame(this.animationFrameId);
+    this.animationFrameId = null;
+    this.pausedValue = true;
+  }
+
+  /** Resumes presentation time from the same trace frame. */
+  public resume(): void {
+    if (!this.pausedValue || this.timeline.length === 0) return;
+    this.pausedValue = false;
+    this.startedAt = performance.now() - this.elapsedValue;
     this.animationFrameId = requestAnimationFrame(this.tick);
   }
 
   public cancel(): void {
     if (this.animationFrameId !== null) cancelAnimationFrame(this.animationFrameId);
     this.animationFrameId = null;
+    this.pausedValue = false;
+    this.elapsedValue = 0;
   }
 
   private readonly tick = (now: number): void => {
     this.animationFrameId = null;
+    if (this.pausedValue) return;
+    this.elapsedValue = Math.max(0, now - this.startedAt);
     this.frameValue = tracePlaybackFrameAt(this.timeline, Math.max(0, now - this.startedAt));
     this.callbacks.onFrame(this.frameValue);
     if (this.frameValue.done) {
