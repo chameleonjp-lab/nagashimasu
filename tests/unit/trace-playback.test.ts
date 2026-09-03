@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { StageController } from '../../src/application/stage-controller';
 import { getBuiltInStage } from '../../src/domain/stages';
 import {
   createTracePlaybackTimeline,
+  TracePlayback,
   tracePlaybackDurations,
   tracePlaybackFrameAt
 } from '../../src/presentation/trace-playback';
@@ -89,6 +90,42 @@ describe('trace playback timeline', () => {
     expect(fast.evaluationMs).toBeLessThan(standard.evaluationMs);
     expect(createTracePlaybackTimeline(stageTrace(), fast)).toHaveLength(7);
     expect(() => tracePlaybackDurations('instant' as never)).toThrow(RangeError);
+  });
+
+  it('pauses and resumes presentation time without changing the current frame', () => {
+    let clock = 100;
+    let queuedCallback: FrameRequestCallback | null = null;
+    let nextRequestId = 0;
+    vi.stubGlobal('performance', { now: () => clock });
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      queuedCallback = callback;
+      nextRequestId += 1;
+      return nextRequestId;
+    });
+    vi.stubGlobal('cancelAnimationFrame', () => undefined);
+
+    try {
+      const playback = new TracePlayback(stageTrace(), {
+        onFrame: () => undefined,
+        onComplete: () => undefined
+      });
+      playback.start();
+      expect(playback.active).toBe(true);
+      clock = 140;
+      playback.pause();
+      const pausedFrame = playback.frame;
+      expect(playback.paused).toBe(true);
+      expect(playback.active).toBe(false);
+      clock = 900;
+      playback.resume();
+      expect(playback.paused).toBe(false);
+      expect(playback.active).toBe(true);
+      expect(playback.frame).toBe(pausedFrame);
+      expect(queuedCallback).not.toBeNull();
+      playback.cancel();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

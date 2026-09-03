@@ -31,4 +31,25 @@ describe('domain boundaries', () => {
       }
     }
   });
+
+  it('does not import Three.js from the domain or application layers', () => {
+    const sourceDirectories = [
+      new URL('../../src/domain/', import.meta.url),
+      new URL('../../src/application/', import.meta.url)
+    ];
+    const forbidden = [
+      /from\s+['"][^'"]*three(?:\.js)?['"]/u,
+      /import\s*\([^)]*three(?:\.js)?/u,
+      /require\s*\([^)]*three(?:\.js)?/u
+    ];
+
+    for (const directory of sourceDirectories) {
+      for (const file of listTypeScriptFiles(directory.pathname)) {
+        const source = readFileSync(file, 'utf8');
+        for (const pattern of forbidden) {
+          expect(source, `${file} must not contain ${String(pattern)}`).not.toMatch(pattern);
+        }
+      }
+    }
+  });
 });
