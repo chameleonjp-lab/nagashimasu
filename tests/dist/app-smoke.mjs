@@ -59,6 +59,10 @@ for (const externalMarker of ['https://cdn.', 'https://unpkg.com/', 'https://cdn
 for (const marker of [
   '3D盤面を準備中…',
   '3D表示を開始できませんでした',
+  '盤面が見えないとき',
+  '盤面の読み方（例）',
+  '水流が4回進みます',
+  '盤外の出口は地形を上げても閉じません',
   '3D表示を再生成',
   '3D表示が中断されました',
   'camera-left',
