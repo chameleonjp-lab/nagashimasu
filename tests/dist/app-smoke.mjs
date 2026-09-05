@@ -113,7 +113,8 @@ for (const marker of [
   '仮置きは保持しています',
   '名前を入力するとゲームを開始できます',
   'シェア文をコピー',
-  '上位10名'
+  '上位10名',
+  'ランキングを見る'
 ]) {
   if (!allScript.includes(marker)) throw new Error(`app bundle is missing marker: ${marker}`);
 }

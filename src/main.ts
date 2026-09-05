@@ -365,11 +365,14 @@ appRoot.innerHTML = `
           <button id="result-share" type="button">シェア文をコピー</button>
           <p id="result-share-status" class="platform-status" role="status" aria-live="polite"></p>
         </section>
-        <section class="online-ranking" aria-labelledby="ranking-title">
-          <h3 id="ranking-title">上位10名</h3>
-          <ol id="ranking-list" class="ranking-list"></ol>
-          <p id="ranking-status" class="platform-status" role="status" aria-live="polite">結果を送信するとランキングを表示します。</p>
-        </section>
+        <details class="online-ranking">
+          <summary>ランキングを見る</summary>
+          <section aria-labelledby="ranking-title">
+            <h3 id="ranking-title">上位10名</h3>
+            <ol id="ranking-list" class="ranking-list"></ol>
+            <p id="ranking-status" class="platform-status" role="status" aria-live="polite">結果を送信するとランキングを表示します。</p>
+          </section>
+        </details>
         <a class="platform-link result-platform-link" href="${LAB_URL}" target="_blank" rel="noopener noreferrer">カメレオンJPの実験場へ</a>
         <button id="retry" type="button">もう一度</button>
         <button id="stage-menu" type="button">ステージ選択へ</button>
