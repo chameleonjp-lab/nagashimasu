@@ -56,6 +56,7 @@ import {
   resultFirstBreakText,
   resultImprovementHint
 } from './presentation/result-feedback';
+import { resultScoreGuideText } from './presentation/result-score-guide';
 import {
   buildTurnOutcomeSummary
 } from './presentation/turn-outcome';
@@ -374,6 +375,7 @@ appRoot.innerHTML = `
         <p id="result-first-break"></p>
         <p id="result-cause"></p>
         <p id="result-score"></p>
+        <p class="result-score-guide" id="result-score-guide"></p>
         <p id="result-reasons"></p>
         <p class="result-hint" id="result-hint"></p>
         <section class="result-sharing" aria-labelledby="result-share-title">
@@ -490,6 +492,7 @@ const resultSummary = required<HTMLElement>('#result-summary');
 const resultFirstBreak = required<HTMLElement>('#result-first-break');
 const resultCause = required<HTMLElement>('#result-cause');
 const resultScore = required<HTMLElement>('#result-score');
+const resultScoreGuide = required<HTMLElement>('#result-score-guide');
 const resultReasons = required<HTMLElement>('#result-reasons');
 const resultHint = required<HTMLElement>('#result-hint');
 const resultPlayer = required<HTMLElement>('#result-player');
@@ -1670,6 +1673,7 @@ function render(): void {
     resultFirstBreak.textContent = resultFirstBreakText(resultInput);
     resultCause.textContent = resultCauseText(resultInput);
     resultScore.textContent = `スコア ${score.total}（安全 ${score.safety}・効率 ${score.efficiency}・制御 ${score.control}）／評価 ${score.grade ?? '-'} `;
+    resultScoreGuide.textContent = resultScoreGuideText(currentStage);
     resultReasons.textContent = view.snapshot.failureReasons.length === 0
       ? '危険を抑え、安全な流れを作れました。'
       : view.snapshot.failureReasons.map(failureReasonText).join('／');
