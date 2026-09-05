@@ -46,6 +46,10 @@ class FakeStorage implements ProgressStorageLike {
 }
 
 describe('progress storage', () => {
+  it('starts new players with the longer thinking-time preset', () => {
+    expect(createDefaultProgress().timerMode).toBe('extended');
+  });
+
   it('round-trips settings and keeps the best cleared result', () => {
     let progress = createDefaultProgress();
     progress = setProgressTimerMode(progress, 'extended');
