@@ -52,6 +52,7 @@ import {
   rejectionReasonText,
   resultVisualText
 } from './presentation/game-copy';
+import { mobileControlsFocusTarget } from './presentation/mobile-controls-focus';
 import {
   objectiveProgressTitle,
   phaseLabel,
@@ -787,6 +788,30 @@ function setMobileControlsOpen(open: boolean): void {
   if (wasOpen && !open && isMobileViewport() && gameShell.hidden === false) {
     window.requestAnimationFrame(() => mobileControlsToggle.focus({ preventScroll: true }));
   }
+  if (!wasOpen && open && isMobileViewport() && gameShell.hidden === false) {
+    window.requestAnimationFrame(() => {
+      if (!mobileControlsOpen || gameShell.hidden) return;
+      const view = controller.view;
+      const target = mobileControlsFocusTarget({
+        phase: view.snapshot.phase,
+        hasPendingPlacement: view.pending !== null,
+        selectedCandidateSlot: view.candidates.find((candidate) => candidate.selected)?.slot ?? null,
+        boardReady: boardViewState === 'ready',
+        inputLocked: boardViewInputLocked,
+        playbackActive: playback !== null
+      });
+      const element = target === 'candidate-a'
+        ? candidateButtons[0]
+        : target === 'candidate-b'
+          ? candidateButtons[1]
+          : target === 'confirm'
+            ? confirmButton
+            : target === 'retry'
+              ? retryButton
+              : mobileControlsClose;
+      element.focus({ preventScroll: true });
+    });
+  }
 }
 
 function cameraText(rotation: BoardRotation): string {
@@ -1287,9 +1312,6 @@ function startPlayback(
         setMobileControlsOpen(true);
       }
       render();
-      if (controller.view.snapshot.phase !== 'awaiting-turn' && isMobileViewport()) {
-        window.requestAnimationFrame(() => resultPanel.focus({ preventScroll: true }));
-      }
     }
   }, tracePlaybackDurations(
     playbackSpeedUnlocked() ? selectedPlaybackSpeed : 'standard'
