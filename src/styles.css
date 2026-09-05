@@ -245,6 +245,20 @@ button:disabled {
   gap: 8px;
 }
 
+.online-ranking > summary {
+  min-height: 44px;
+  padding: 10px 0;
+  color: #ffd166;
+  cursor: pointer;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.online-ranking > section {
+  display: grid;
+  gap: 8px;
+}
+
 .player-name-card {
   border: 1px solid rgba(180, 235, 255, 0.14);
   border-radius: 16px;
