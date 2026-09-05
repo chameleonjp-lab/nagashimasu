@@ -93,6 +93,7 @@ for (const marker of [
   '失敗見込み',
   'result-hint',
   '次に改善する1点',
+  'スコアは安全50点',
   '前のステージをクリアすると解放',
   'candidate-shape',
   '◎基準セル',
