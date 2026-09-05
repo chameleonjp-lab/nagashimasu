@@ -268,6 +268,24 @@ appRoot.innerHTML = `
       <canvas class="game-canvas" id="board" aria-label="8×8の治水盤面"></canvas>
       <div class="board-view-state" id="board-view-state" role="status" aria-live="polite" hidden>
         <p id="board-view-state-text"></p>
+        <section class="board-view-state-help" id="board-view-state-help" aria-labelledby="board-view-state-help-title" hidden>
+          <h2 id="board-view-state-help-title">盤面が見えないとき</h2>
+          <figure class="board-view-state-diagram" role="img" aria-label="盤面の例。雨が落ち、水面の低いセルへ流れ、安全な出口へ向かいます。">
+            <div class="board-view-state-diagram-grid" aria-hidden="true">
+              <span class="board-view-state-diagram-token diagram-rain">雨</span>
+              <span class="board-view-state-diagram-token diagram-water">水</span>
+              <span class="board-view-state-diagram-token diagram-flow">→</span>
+              <span class="board-view-state-diagram-token diagram-outlet">出口</span>
+            </div>
+            <figcaption>盤面の読み方（例）</figcaption>
+          </figure>
+          <ol>
+            <li>候補を選び、緑の丸を押して仮置きします。</li>
+            <li>施工を確定すると、雨のあと水流が4回進みます。</li>
+            <li>同じ高さでは水は動かず、盤外の出口は地形を上げても閉じません。</li>
+          </ol>
+          <p>この端末では3D盤面を操作できません。再生成を試すか、別の端末でプレイしてください。</p>
+        </section>
         <div class="board-view-state-actions">
           <button id="board-view-retry" type="button">3D表示を再生成</button>
           <button id="board-view-stage-menu" type="button">ステージ選択へ戻る</button>
@@ -391,6 +409,7 @@ const canvas = required<HTMLCanvasElement>('#board');
 const stageElement = required<HTMLElement>('.game-stage');
 const boardViewStateElement = required<HTMLElement>('#board-view-state');
 const boardViewStateText = required<HTMLElement>('#board-view-state-text');
+const boardViewStateHelp = required<HTMLElement>('#board-view-state-help');
 const boardViewRetryButton = required<HTMLButtonElement>('#board-view-retry');
 const boardViewStageMenuButton = required<HTMLButtonElement>('#board-view-stage-menu');
 const gameControls = required<HTMLElement>('#game-controls');
@@ -526,6 +545,7 @@ function setBoardViewState(nextState: typeof boardViewState, message = ''): void
   boardViewStateElement.dataset['state'] = nextState;
   boardViewStateText.textContent = message;
   const showActions = nextState === 'error' || nextState === 'context-lost';
+  boardViewStateHelp.hidden = !showActions;
   boardViewRetryButton.hidden = !showActions;
   boardViewStageMenuButton.hidden = !showActions;
 }
