@@ -11,7 +11,7 @@ if (stageOne === undefined || stageThree === undefined) {
 }
 
 describe('stage preview summary', () => {
-  it('describes construction and the next flow without changing the session', () => {
+  it('describes the full turn horizon without changing the session', () => {
     const controller = new StageController(stageOne);
     controller.setAnchor(8);
     const beforeHash = controller.session.reversibleGameplayHash;
@@ -21,9 +21,10 @@ describe('stage preview summary', () => {
     );
 
     expect(summary).not.toBeNull();
-    expect(summary?.construction).toBe('セル9・セル10を1段上げる');
+    expect(summary?.construction).toBe('セルA2・セルB2を1段上げる');
     expect(summary?.rain).toBe('この手の雨はありません');
-    expect(summary?.flow).toBe('次の水流で大きな変化はありません');
+    expect(summary?.flow).toBe('4回の水流後: 大きな変化はありません');
+    expect(summary?.result).toBe('見込み: この手の後も続けられます');
     expect(controller.session.reversibleGameplayHash).toBe(beforeHash);
   });
 
@@ -36,7 +37,8 @@ describe('stage preview summary', () => {
       controller.view.preview
     );
 
-    expect(summary?.rain).toBe('雨16（セル33・セル41）');
+    expect(summary?.rain).toBe('雨16（セルA5・セルA6）');
+    expect(summary?.result).toBe('見込み: 失敗（保護セルが浸水）');
   });
 
   it('returns no summary when there is no pending placement', () => {

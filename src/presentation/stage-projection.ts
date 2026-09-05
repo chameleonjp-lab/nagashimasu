@@ -71,21 +71,32 @@ function forecastViews(forecasts: readonly StageRainForecast[]): readonly StageF
 }
 
 function transferSources(
-  result: FlowStepResult | null,
+  results: readonly FlowStepResult[],
   predicate: (transfer: WaterTransfer) => boolean
 ): ReadonlySet<number> {
-  if (result === null) return new Set<number>();
-  return new Set(result.transfers.filter(predicate).map((transfer) => transfer.from));
+  return new Set(
+    results.flatMap((result) =>
+      result.transfers.filter(predicate).map((transfer) => transfer.from)
+    )
+  );
 }
 
-function protectedOverflowCells(preview: StageTurnPreview | null): ReadonlySet<number> {
-  if (preview === null) return new Set<number>();
-  return new Set(preview.nextFlow.protectedOverflows.map((overflow) => overflow.index));
+function previewFlowResults(preview: StageTurnPreview | null): readonly FlowStepResult[] {
+  return preview === null ? [] : preview.flowSteps;
 }
 
-function safeDrainCells(preview: StageTurnPreview | null): ReadonlySet<number> {
-  if (preview === null) return new Set<number>();
-  return new Set(preview.nextFlow.drains.map((drain) => drain.index));
+function protectedOverflowCells(results: readonly FlowStepResult[]): ReadonlySet<number> {
+  return new Set(
+    results.flatMap((result) =>
+      result.protectedOverflows.map((overflow) => overflow.index)
+    )
+  );
+}
+
+function safeDrainCells(results: readonly FlowStepResult[]): ReadonlySet<number> {
+  return new Set(
+    results.flatMap((result) => result.drains.map((drain) => drain.index))
+  );
 }
 
 /** Builds display-only risk information from exact snapshot and preview evidence. */
@@ -102,12 +113,13 @@ export function buildStageProjection(
     nextRainByCell.set(cell.index, (nextRainByCell.get(cell.index) ?? 0) + cell.amount);
   }
 
+  const previewFlows = previewFlowResults(preview);
   const dangerSources = transferSources(
-    preview?.nextFlow ?? null,
+    previewFlows,
     (transfer) => transfer.kind === 'danger-edge'
   );
-  const safeSources = safeDrainCells(preview);
-  const overflowCells = protectedOverflowCells(preview);
+  const safeSources = safeDrainCells(previewFlows);
+  const overflowCells = protectedOverflowCells(previewFlows);
   const risks: StageCellRiskView[] = [];
 
   for (let index = 0; index < snapshot.board.terrain.length; index += 1) {
@@ -129,15 +141,15 @@ export function buildStageProjection(
     }
     if (overflowCells.has(index)) {
       level = maxRisk(level, 'critical');
-      addReason(reasons, '次の水流で保護セルへ浸水します');
+      addReason(reasons, 'この手の水流で保護セルへ浸水します');
     }
     if (dangerSources.has(index)) {
       level = maxRisk(level, 'danger');
-      addReason(reasons, '次の水流で危険側の出口へ流れます');
+      addReason(reasons, 'この手の水流で危険側の出口へ流れます');
     }
     if (safeSources.has(index)) {
       level = maxRisk(level, 'caution');
-      addReason(reasons, '次の水流で安全排水口へ流れます');
+      addReason(reasons, 'この手の水流で安全排水口へ流れます');
     }
     if (forecastAmount > 0) {
       const rainWouldOverflow = protectedCell && water + forecastAmount > protectedLimit;

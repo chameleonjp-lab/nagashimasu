@@ -1,16 +1,15 @@
 import type {
+  StageFailureReason,
   StageSessionSnapshot,
   StageTurnPreview
 } from '../domain/stage-session';
+import { cellLabel } from './cell-label';
 
 export interface StagePreviewSummary {
   readonly construction: string;
   readonly rain: string;
   readonly flow: string;
-}
-
-function cellLabel(index: number): string {
-  return `セル${index + 1}`;
+  readonly result: string;
 }
 
 function constructionSummary(
@@ -49,17 +48,43 @@ function rainSummary(preview: StageTurnPreview): string {
 }
 
 function flowSummary(preview: StageTurnPreview): string {
-  const result = preview.nextFlow;
+  const results = preview.flowSteps;
+  const moved = results.reduce((sum, result) => sum + result.movedWater, 0);
+  const safeDrained = results.reduce((sum, result) => sum + result.safeDrained, 0);
+  const dangerLeaked = results.reduce((sum, result) => sum + result.dangerLeaked, 0);
+  const protectedOverflow = results.reduce(
+    (sum, result) => sum + result.protectedOverflow,
+    0
+  );
   const parts: string[] = [];
-  if (result.movedWater > 0) parts.push(`移動${result.movedWater}`);
-  if (result.safeDrained > 0) parts.push(`安全排水${result.safeDrained}`);
-  if (result.dangerLeaked > 0) parts.push(`危険流出${result.dangerLeaked}`);
-  if (result.protectedOverflow > 0) {
-    parts.push(`保護セル浸水${result.protectedOverflow}`);
-  }
+  if (moved > 0) parts.push(`移動${moved}`);
+  if (safeDrained > 0) parts.push(`安全排水${safeDrained}`);
+  if (dangerLeaked > 0) parts.push(`危険流出${dangerLeaked}`);
+  if (protectedOverflow > 0) parts.push(`保護セル浸水${protectedOverflow}`);
+  const horizon = `${results.length}回の水流後`;
   return parts.length === 0
-    ? '次の水流で大きな変化はありません'
-    : `次の水流: ${parts.join('・')}`;
+    ? `${horizon}: 大きな変化はありません`
+    : `${horizon}: ${parts.join('・')}`;
+}
+
+function failureReasonText(reason: StageFailureReason): string {
+  switch (reason) {
+    case 'danger-leak': return '危険側へ流出';
+    case 'protected-overflow': return '保護セルが浸水';
+    case 'objective-not-met': return '目的未達';
+  }
+}
+
+function resultSummary(preview: StageTurnPreview): string {
+  if (preview.phase === 'cleared') return '見込み: この手でクリアします';
+  if (preview.phase === 'failed') {
+    const reasons = preview.failureReasons.map(failureReasonText).join('・');
+    return reasons.length > 0
+      ? `見込み: 失敗（${reasons}）`
+      : '見込み: 失敗';
+  }
+  if (preview.objectiveMet) return '見込み: この手の後で目標達成済みです';
+  return '見込み: この手の後も続けられます';
 }
 
 /** Converts the authoritative preview evidence into short, user-facing text. */
@@ -71,6 +96,7 @@ export function buildStagePreviewSummary(
   return Object.freeze({
     construction: constructionSummary(snapshot, preview),
     rain: rainSummary(preview),
-    flow: flowSummary(preview)
+    flow: flowSummary(preview),
+    result: resultSummary(preview)
   });
 }

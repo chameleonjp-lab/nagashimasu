@@ -4,6 +4,7 @@ import type {
   StagePhase,
   StageScore
 } from '../domain/stage-session';
+import { cellLabel } from './cell-label';
 
 export interface ResultFeedbackInput {
   readonly phase: Extract<StagePhase, 'cleared' | 'failed'>;
@@ -32,7 +33,7 @@ export function resultFirstBreakText(input: ResultFeedbackInput): string {
         firstStep = step;
       }
     });
-    if (firstCellIndex >= 0) return `最初の破綻: 保護対象のセル${firstCellIndex + 1}`;
+    if (firstCellIndex >= 0) return `最初の破綻: 保護対象の${cellLabel(firstCellIndex)}`;
     if (input.metrics.firstFloodStep !== null) return '最初の破綻: 保護対象の浸水';
     return '最初の破綻: 保護対象';
   }
@@ -70,7 +71,7 @@ export function resultImprovementHint(input: ResultFeedbackInput): string {
     if (hasReason(input.failureReasons, 'objective-not-met')) {
       return '次に改善する1点: 目的のセルを先に整え、最後の雨まで進捗を残してください。';
     }
-    return '次に改善する1点: 雨予報と次の水流を見て、危険な流れを1つ先に直してください。';
+    return '次に改善する1点: 雨予報と最終見込みを見て、危険な流れを先に直してください。';
   }
 
   if (input.score.safety < 50) {

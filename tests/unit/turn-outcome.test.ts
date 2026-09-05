@@ -65,9 +65,9 @@ describe('turn outcome summary', () => {
     });
 
     expect(summary.construction).toBe('セル17・セル25を1段上げる');
-    expect(summary.rain).toBe('雨: 合計8（セル18）');
+    expect(summary.rain).toBe('雨: 合計8（セルB3）');
     expect(summary.flow).toContain('安全排水2');
-    expect(summary.flow).toContain('セル18→セル19');
+    expect(summary.flow).toContain('セルB3→セルC3');
     expect(summary.result).toContain('次の手番');
   });
 

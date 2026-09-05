@@ -42,6 +42,7 @@ import type {
 } from './presentation/board-view-contract';
 import { buildStageProjection, riskLabel } from './presentation/stage-projection';
 import { buildStagePreviewSummary } from './presentation/stage-preview';
+import { cellLabel } from './presentation/cell-label';
 import {
   resultCauseText,
   resultFirstBreakText,
@@ -137,7 +138,7 @@ function stageNumber(definition: ValidatedStageDefinition): number {
 
 const cellPickerMarkup = Array.from(
   { length: CELL_COUNT },
-  (_, index) => `<button class="cell-picker-cell" type="button" data-cell-index="${index}" aria-pressed="false" disabled>${index + 1}</button>`
+  (_, index) => `<button class="cell-picker-cell" type="button" data-cell-index="${index}" aria-pressed="false" disabled>${cellLabel(index)}</button>`
 ).join('');
 
 const stageOptionsMarkup = BUILT_IN_STAGES.map((definition) => `
@@ -188,7 +189,7 @@ appRoot.innerHTML = `
         <ol id="tutorial-steps">
           <li><strong>候補A/Bを選ぶ</strong><span>地面を上げる・下げる工事から1つ選びます。最初はAが選択済みです。</span></li>
           <li><strong>緑の丸を1つ押す</strong><span>緑の丸は、その工事を置ける場所です。仮置きなのでまだ確定しません。</span></li>
-          <li><strong>予測を読んで進める</strong><span>「施工確定」でその配置のまま雨を進めます。「見送り」なら工事をせず雨を進めます。</span></li>
+          <li><strong>4回後の見込みを読む</strong><span>「施工確定」で工事・雨・4回の水流を進めます。「見送り」なら工事をせず進めます。</span></li>
         </ol>
       </section>
       <section class="stage-picker" aria-labelledby="stage-picker-title">
@@ -264,10 +265,10 @@ appRoot.innerHTML = `
           <button id="board-view-stage-menu" type="button">ステージ選択へ戻る</button>
         </div>
       </div>
-      <div class="camera-controls" aria-label="盤面の向き">
-        <button id="camera-left" type="button" aria-label="盤面を左へ90度回転">↶</button>
-        <span id="camera-label">盤面 1 / 4</span>
-        <button id="camera-right" type="button" aria-label="盤面を右へ90度回転">↷</button>
+      <div class="camera-controls" aria-label="盤面を見る向き">
+        <button id="camera-left" type="button" aria-label="盤面を見る向きを左へ90度変える">↶</button>
+        <span id="camera-label">盤面を見る向き 1 / 4</span>
+        <button id="camera-right" type="button" aria-label="盤面を見る向きを右へ90度変える">↷</button>
         <button id="camera-reset" type="button">正面</button>
       </div>
       <div class="mobile-stage-action">
@@ -286,7 +287,7 @@ appRoot.innerHTML = `
         <h2 class="controls-title">この手の操作</h2>
         <button id="mobile-controls-close" type="button">盤面へ戻る</button>
       </div>
-      <p class="construction-help" id="construction-help">緑の丸が、選んだ候補を置ける場所です。セル番号は予報と同じ番号です。</p>
+      <p class="construction-help" id="construction-help">緑の丸が、選んだ候補を置ける場所です。座標は予報と同じ表記です。</p>
       <div class="candidate-row">
         <button class="candidate-card" id="candidate-a" type="button" aria-pressed="true">
           <span class="candidate-shape" aria-hidden="true"></span>
@@ -301,16 +302,17 @@ appRoot.innerHTML = `
         <p id="preview-construction"></p>
         <p id="preview-rain"></p>
         <p id="preview-flow"></p>
+        <p id="preview-result"></p>
       </section>
       <div class="action-row">
-        <button id="rotate" type="button"><strong>向きを変える</strong><small>配置を回転</small></button>
+        <button id="rotate" type="button"><strong>パーツを回す</strong><small>工事パーツの向き</small></button>
         <button id="cancel" type="button"><strong>仮置きを取消</strong><small>選び直す</small></button>
         <button id="confirm" type="button"><strong>施工確定</strong><small>この配置で雨を進める</small></button>
         <button id="skip" type="button"><strong>見送り</strong><small>工事せず進める</small></button>
         <button id="undo" type="button"><strong>1手戻す</strong><small>Undo</small></button>
       </div>
       <details class="secondary-info" id="secondary-info">
-        <summary>盤面の見方・セル番号</summary>
+        <summary>盤面の見方・座標</summary>
         <section class="board-legend" aria-labelledby="board-legend-title">
           <h2 id="board-legend-title">盤面の見方</h2>
           <ul class="legend-list">
@@ -321,12 +323,14 @@ appRoot.innerHTML = `
             <li><span class="legend-symbol legend-safe" aria-hidden="true"></span><span>緑の辺：安全な排水方向</span></li>
             <li><span class="legend-symbol legend-danger" aria-hidden="true"></span><span>赤い辺：危険側へ流れる方向</span></li>
             <li><span class="legend-symbol legend-risk" aria-hidden="true"></span><span>黄〜赤の塗り：雨と水流の危険度</span></li>
+            <li><span class="legend-symbol legend-rule" aria-hidden="true">i</span><span>同じ高さのセル同士では水は動きません</span></li>
+            <li><span class="legend-symbol legend-rule" aria-hidden="true">↗</span><span>盤外の出口は、地形を上げても閉じません</span></li>
           </ul>
         </section>
         <details class="cell-picker" id="cell-picker">
-          <summary>盤面が押しにくいとき：セル番号で選ぶ</summary>
+          <summary>盤面が押しにくいとき：座標で選ぶ</summary>
           <p class="cell-picker-help" id="cell-picker-help">施工可能なセルだけ押せます。キーボードでも選べます。</p>
-          <div class="cell-picker-grid" id="cell-picker-grid" aria-label="施工可能なセル番号">${cellPickerMarkup}</div>
+          <div class="cell-picker-grid" id="cell-picker-grid" aria-label="施工可能な座標">${cellPickerMarkup}</div>
         </details>
       </details>
       <section class="turn-outcome" id="turn-outcome" hidden aria-live="polite" aria-atomic="true">
@@ -434,6 +438,7 @@ const previewSummaryElement = required<HTMLElement>('#preview-summary');
 const previewConstructionElement = required<HTMLElement>('#preview-construction');
 const previewRainElement = required<HTMLElement>('#preview-rain');
 const previewFlowElement = required<HTMLElement>('#preview-flow');
+const previewResultElement = required<HTMLElement>('#preview-result');
 const turnOutcomeElement = required<HTMLElement>('#turn-outcome');
 const turnOutcomeConstructionElement = required<HTMLElement>('#turn-outcome-construction');
 const turnOutcomeRainElement = required<HTMLElement>('#turn-outcome-rain');
@@ -770,7 +775,7 @@ function setMobileControlsOpen(open: boolean): void {
 }
 
 function cameraText(rotation: BoardRotation): string {
-  return `盤面 ${rotation + 1} / 4`;
+  return `盤面を見る向き ${rotation + 1} / 4`;
 }
 
 function setCameraRotation(nextRotation: number): void {
@@ -1214,7 +1219,7 @@ function updateTurnGuide(
   } else if (view.pending !== null) {
     step = 3;
     stepLabel = 'ステップ3 / 3';
-    action = '仮置き中: 下のプレビューで、施工・雨・次の水流を確認してください。';
+    action = '仮置き中: 下のプレビューで、施工・雨・4回の水流後の見込みを確認してください。';
     detail = '納得したら「施工確定」で進みます。やめるなら「仮置きを取消」です。';
   } else if (view.legalAnchorIndices.length === 0) {
     step = 3;
@@ -1362,7 +1367,7 @@ function selectCellAt(clientX: number, clientY: number): void {
   const cell = boardView.pickCell(clientX, clientY, view.legalAnchorIndices);
   if (cell !== null) {
     controller.setAnchor(cell);
-    lastMessage = `セル${cell + 1}に仮置きしました。施工確定で手番が進みます。`;
+    lastMessage = `${cellLabel(cell)}に仮置きしました。施工確定で手番が進みます。`;
     if (isMobileViewport()) setMobileControlsOpen(true);
     render();
   }
@@ -1450,18 +1455,18 @@ function renderCandidateCard(
   title.textContent = titleText;
   const detail = document.createElement('small');
   const shapeText = candidateShapeLabel(offsets);
-  detail.textContent = `${shapeText}／向き${rotation + 1}`;
+  detail.textContent = `${shapeText}／パーツの向き${rotation + 1}`;
   copy.append(title, detail);
   button.replaceChildren(shape, copy);
   button.title = `${card.pieceId} / token ${card.tokenId}`;
-  button.setAttribute('aria-label', `${titleText}、${shapeText}、向き${rotation + 1}`);
+  button.setAttribute('aria-label', `${titleText}、${shapeText}、パーツの向き${rotation + 1}`);
 }
 
 function updateCellPicker(view: StageControllerView, locked: boolean): void {
   const legalAnchors = new Set(view.legalAnchorIndices);
   const canSelect = !locked && view.snapshot.phase === 'awaiting-turn';
   cellPickerHelpElement.textContent = legalAnchors.size > 0
-    ? `施工可能なセルは${legalAnchors.size}か所です。有効な番号を押すと仮置きします。`
+    ? `施工可能な座標は${legalAnchors.size}か所です。有効な座標を押すと仮置きします。`
     : '現在、選んだ候補を置けるセルはありません。見送りで水を進められます。';
   for (const button of cellPickerButtons) {
     const index = Number(button.dataset['cellIndex']);
@@ -1473,8 +1478,8 @@ function updateCellPicker(view: StageControllerView, locked: boolean): void {
     button.setAttribute(
       'aria-label',
       legal
-        ? `セル${index + 1}${selected ? '（選択中）' : '（施工可能）'}`
-        : `セル${index + 1}（現在は施工不可）`
+        ? `${cellLabel(index)}${selected ? '（選択中）' : '（施工可能）'}`
+        : `${cellLabel(index)}（現在は施工不可）`
     );
   }
 }
@@ -1563,7 +1568,7 @@ function render(): void {
   );
   const forecastText = view.forecasts.length === 0
     ? '雨予報: なし'
-    : `雨予報: ${projection.forecasts.map((forecast) => `あと${forecast.turnsUntil}手・${forecast.totalAmount}・${forecast.cells.map((cell) => `セル${cell.index + 1}`).join('／')}`).join('、')}`;
+    : `雨予報: ${projection.forecasts.map((forecast) => `あと${forecast.turnsUntil}手・${forecast.totalAmount}・${forecast.cells.map((cell) => cellLabel(cell.index)).join('／')}`).join('、')}`;
   forecastElement.textContent = forecastText;
   turnElement.textContent = `手数 ${view.snapshot.completedTurns} / ${currentStage.maxTurns}`;
   const duration = thinkingDurationMs();
@@ -1596,7 +1601,7 @@ function render(): void {
     riskElement.textContent = '危険度: セルを選ぶと、雨と水流の理由を表示します。';
   } else {
     const reasons = selectedRisk.reasons.length > 0 ? selectedRisk.reasons.join('／') : '今の予測では大きな危険はありません';
-    riskElement.textContent = `セル${selectedRisk.index + 1} 危険度: ${riskLabel(selectedRisk.level)} — ${reasons}`;
+    riskElement.textContent = `${cellLabel(selectedRisk.index)} 危険度: ${riskLabel(selectedRisk.level)} — ${reasons}`;
   }
 
   previewSummaryElement.hidden = previewSummary === null;
@@ -1607,13 +1612,14 @@ function render(): void {
     ? ''
     : `降雨: ${previewSummary.rain}`;
   previewFlowElement.textContent = previewSummary?.flow ?? '';
+  previewResultElement.textContent = previewSummary?.result ?? '';
 
   constructionHelpElement.textContent = view.legalAnchorIndices.length > 0
     ? isMobileViewport()
       ? view.pending === null
-        ? '候補を選び、「盤面へ戻る」を押してから緑の丸をタップします。'
+        ? '候補を選び、「盤面へ戻る」を押してから緑の丸をタップします。座標でも選べます。'
         : '仮置きした場所を盤面で確認し、施工確定または取消を選びます。'
-      : `緑の丸が、選んだ候補を置ける場所です（${view.legalAnchorIndices.length}か所）。セル番号は予報と同じ番号です。`
+      : `緑の丸が、選んだ候補を置ける場所です（${view.legalAnchorIndices.length}か所）。座標は予報と同じ表記です。`
     : '現在、選んだ候補を置ける場所はありません。見送りで水を進められます。';
   updateCellPicker(view, locked);
 
@@ -1629,6 +1635,10 @@ function render(): void {
   rotateButton.disabled = locked || !hasPending;
   cancelButton.disabled = locked || !hasPending;
   confirmButton.disabled = locked || view.preview === null || view.snapshot.phase !== 'awaiting-turn';
+  const previewFailure = view.preview?.phase === 'failed';
+  confirmButton.classList.toggle('preview-failure', previewFailure);
+  if (previewFailure) confirmButton.setAttribute('aria-label', '施工確定（失敗見込み）');
+  else confirmButton.removeAttribute('aria-label');
   skipButton.disabled = locked || view.snapshot.phase !== 'awaiting-turn';
   undoButton.disabled = locked || view.snapshot.undoUsed || view.snapshot.revision === 0;
 
@@ -1730,20 +1740,20 @@ cellPickerButtons.forEach((button) => {
       !view.legalAnchorIndices.includes(index)
     ) return;
     controller.setAnchor(index);
-    lastMessage = `セル${index + 1}に仮置きしました。施工確定で手番が進みます。`;
+    lastMessage = `${cellLabel(index)}に仮置きしました。施工確定で手番が進みます。`;
     render();
   });
 });
 
 cameraLeftButton.addEventListener('click', () => {
   setCameraRotation(cameraRotation - 1);
-  lastMessage = '盤面を左へ90度回転しました。';
+  lastMessage = '盤面を見る向きを左へ90度変えました。';
   render();
 });
 
 cameraRightButton.addEventListener('click', () => {
   setCameraRotation(cameraRotation + 1);
-  lastMessage = '盤面を右へ90度回転しました。';
+  lastMessage = '盤面を見る向きを右へ90度変えました。';
   render();
 });
 
@@ -1768,7 +1778,7 @@ mobileControlsBackdrop.addEventListener('click', () => {
 rotateButton.addEventListener('click', () => {
   if (playback !== null || paused) return;
   controller.rotate();
-  lastMessage = '仮置きの向きを回転しました。';
+  lastMessage = '工事パーツの向きを変えました。';
   render();
 });
 

@@ -19,6 +19,8 @@ export interface ThreeBoardFrame {
   readonly constructionAnchorCells: readonly number[];
   readonly activePlacementCells: readonly number[];
   readonly previewFlow: FlowStepResult | null;
+  /** Last preview step, which matches the preview's final board snapshot. */
+  readonly previewFinalFlow: FlowStepResult | null;
   readonly activeFlow: FlowStepResult | null;
   readonly rainCells: readonly RainEvent[];
   readonly forecastCells: readonly ForecastCellView[];
@@ -68,9 +70,12 @@ export function buildThreeBoardFrame(
   const constructionVisual = options.constructionVisual ?? null;
   const terrain = constructionVisual?.terrainAfter ??
     preview?.terrainAfterConstruction ?? snapshot.terrain;
-  const water = preview?.boardAfterNextFlow.water ?? snapshot.water;
+  const water = preview?.boardAfterTurn.water ?? snapshot.water;
   const activeFlow = options.flowResult ?? null;
   const previewFlow = activeFlow === null && preview?.valid === true ? preview.nextFlow : null;
+  const previewFinalFlow = activeFlow === null && preview?.valid === true
+    ? preview.flowSteps[preview.flowSteps.length - 1] ?? previewFlow
+    : null;
   const activeRain = frozenRain(options.rainCells ?? []);
   const previewRain = preview?.valid === true ? preview.rainCells : [];
   const rainCells = activeRain.length > 0 ? activeRain : frozenRain(previewRain);
@@ -93,6 +98,7 @@ export function buildThreeBoardFrame(
     constructionAnchorCells: frozenNumbers(options.constructionAnchorCells),
     activePlacementCells: frozenNumbers(options.activePlacementCells),
     previewFlow,
+    previewFinalFlow,
     activeFlow,
     rainCells,
     forecastCells: frozenForecast(options.forecastCells),
