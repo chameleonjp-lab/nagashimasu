@@ -90,6 +90,8 @@ for (const marker of [
   '次に改善する1点',
   '前のステージをクリアすると解放',
   'candidate-shape',
+  '◎基準セル',
+  'is-anchor',
   'legalAnchorIndices',
   'constructionAnchorCells',
   '座標は予報と同じ表記',

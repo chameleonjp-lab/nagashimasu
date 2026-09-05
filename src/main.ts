@@ -25,7 +25,11 @@ import { isStageUnlocked, stageAccessLabel } from './application/stage-access';
 import { TurnTimer, formatRemainingSeconds, timerDurationMs } from './application/turn-timer';
 import { shouldStartTurnTimerAfterVisibility } from './application/visibility-resume';
 import { CELL_COUNT } from './domain/constants';
-import type { CandidateSlot, StageTimerMode } from './domain/stage-replay';
+import type {
+  CandidateSlot,
+  StageRotation,
+  StageTimerMode
+} from './domain/stage-replay';
 import { getStageObjectiveProgress } from './domain/stage-session';
 import type {
   StageExecution,
@@ -42,6 +46,10 @@ import type {
 } from './presentation/board-view-contract';
 import { buildStageProjection, riskLabel } from './presentation/stage-projection';
 import { buildStagePreviewSummary } from './presentation/stage-preview';
+import {
+  buildCandidateShapeLayout,
+  candidateShapeLabel
+} from './presentation/candidate-shape';
 import { cellLabel } from './presentation/cell-label';
 import {
   resultCauseText,
@@ -287,7 +295,7 @@ appRoot.innerHTML = `
         <h2 class="controls-title">この手の操作</h2>
         <button id="mobile-controls-close" type="button">盤面へ戻る</button>
       </div>
-      <p class="construction-help" id="construction-help">緑の丸が、選んだ候補を置ける場所です。座標は予報と同じ表記です。</p>
+      <p class="construction-help" id="construction-help">緑の丸は、候補カードの◎に対応する基準セルです。座標は予報と同じ表記です。</p>
       <div class="candidate-row">
         <button class="candidate-card" id="candidate-a" type="button" aria-pressed="true">
           <span class="candidate-shape" aria-hidden="true"></span>
@@ -316,7 +324,7 @@ appRoot.innerHTML = `
         <section class="board-legend" aria-labelledby="board-legend-title">
           <h2 id="board-legend-title">盤面の見方</h2>
           <ul class="legend-list">
-            <li><span class="legend-symbol legend-anchor" aria-hidden="true"></span><span>緑の丸：選んだ候補を置けるセル</span></li>
+            <li><span class="legend-symbol legend-anchor" aria-hidden="true"></span><span>緑の丸：候補カードの◎に対応する基準セル</span></li>
             <li><span class="legend-symbol legend-forecast" aria-hidden="true"></span><span>点線の輪：予報の雨（数字は雨量）</span></li>
             <li><span class="legend-symbol legend-flow" aria-hidden="true"></span><span>青い水面：そのセルにたまった水（数字は水量）</span></li>
             <li><span class="legend-symbol legend-flow-particle" aria-hidden="true"></span><span>水色の粒：再生中に移動する水</span></li>
@@ -1389,61 +1397,28 @@ function reasonText(reason: string | null): string {
   return labels[reason] ?? `操作を受け付けません（${reason}）。`;
 }
 
-interface CandidateOffset {
-  readonly row: number;
-  readonly column: number;
-}
-
-function rotateCandidateOffset(offset: CandidateOffset, rotation: number): CandidateOffset {
-  switch (rotation) {
-    case 1: return { row: offset.column, column: -offset.row };
-    case 2: return { row: -offset.row, column: -offset.column };
-    case 3: return { row: -offset.column, column: offset.row };
-    default: return offset;
-  }
-}
-
-function normalizedCandidateOffsets(
-  offsets: readonly CandidateOffset[],
-  rotation: number
-): readonly CandidateOffset[] {
-  const rotated = offsets.map((offset) => rotateCandidateOffset(offset, rotation));
-  const minimumRow = Math.min(...rotated.map((offset) => offset.row));
-  const minimumColumn = Math.min(...rotated.map((offset) => offset.column));
-  return rotated.map((offset) => Object.freeze({
-    row: offset.row - minimumRow,
-    column: offset.column - minimumColumn
-  }));
-}
-
-function candidateShapeLabel(offsets: readonly CandidateOffset[]): string {
-  if (offsets.length === 1) return '1マス';
-  const rows = new Set(offsets.map((offset) => offset.row));
-  const columns = new Set(offsets.map((offset) => offset.column));
-  if (rows.size === 1 || columns.size === 1) return `直線・${offsets.length}マス`;
-  if (offsets.length === 3) return 'L字・3マス';
-  return `形状・${offsets.length}マス`;
-}
-
 function renderCandidateCard(
   button: HTMLButtonElement,
   card: StageControllerView['candidates'][number],
-  rotation: number
+  rotation: StageRotation
 ): void {
-  const offsets = normalizedCandidateOffsets(card.offsets, rotation);
-  const maximumRow = Math.max(...offsets.map((offset) => offset.row));
-  const maximumColumn = Math.max(...offsets.map((offset) => offset.column));
+  const layout = buildCandidateShapeLayout(card.offsets, rotation);
+  const offsets = layout.offsets;
   const occupied = new Set(offsets.map((offset) => `${offset.row},${offset.column}`));
+  const anchorKey = `${layout.anchor.row},${layout.anchor.column}`;
   const shape = document.createElement('span');
   shape.className = 'candidate-shape';
   shape.setAttribute('aria-hidden', 'true');
-  shape.style.gridTemplateColumns = `repeat(${maximumColumn + 1}, 10px)`;
-  for (let row = 0; row <= maximumRow; row += 1) {
-    for (let column = 0; column <= maximumColumn; column += 1) {
+  shape.style.gridTemplateColumns = `repeat(${layout.columnCount}, 10px)`;
+  for (let row = 0; row < layout.rowCount; row += 1) {
+    for (let column = 0; column < layout.columnCount; column += 1) {
+      const key = `${row},${column}`;
       const cell = document.createElement('span');
-      cell.className = occupied.has(`${row},${column}`)
-        ? 'candidate-shape-cell is-filled'
-        : 'candidate-shape-cell';
+      cell.className = [
+        'candidate-shape-cell',
+        occupied.has(key) ? 'is-filled' : '',
+        key === anchorKey ? 'is-anchor' : ''
+      ].filter(Boolean).join(' ');
       shape.append(cell);
     }
   }
@@ -1455,11 +1430,11 @@ function renderCandidateCard(
   title.textContent = titleText;
   const detail = document.createElement('small');
   const shapeText = candidateShapeLabel(offsets);
-  detail.textContent = `${shapeText}／パーツの向き${rotation + 1}`;
+  detail.textContent = `${shapeText}／◎基準セル／パーツの向き${rotation + 1}`;
   copy.append(title, detail);
   button.replaceChildren(shape, copy);
   button.title = `${card.pieceId} / token ${card.tokenId}`;
-  button.setAttribute('aria-label', `${titleText}、${shapeText}、パーツの向き${rotation + 1}`);
+  button.setAttribute('aria-label', `${titleText}、${shapeText}、◎が盤面の緑の丸に対応、パーツの向き${rotation + 1}`);
 }
 
 function updateCellPicker(view: StageControllerView, locked: boolean): void {
@@ -1617,9 +1592,9 @@ function render(): void {
   constructionHelpElement.textContent = view.legalAnchorIndices.length > 0
     ? isMobileViewport()
       ? view.pending === null
-        ? '候補を選び、「盤面へ戻る」を押してから緑の丸をタップします。座標でも選べます。'
-        : '仮置きした場所を盤面で確認し、施工確定または取消を選びます。'
-      : `緑の丸が、選んだ候補を置ける場所です（${view.legalAnchorIndices.length}か所）。座標は予報と同じ表記です。`
+        ? '候補を選び、「盤面へ戻る」→緑の丸（カードの◎）をタップします。座標でも選べます。'
+        : '仮置きした場所を盤面で確認し、施工確定または取消を選びます。カードの◎が緑の丸です。'
+      : `緑の丸（カードの◎）が、選んだ候補の基準セルです（${view.legalAnchorIndices.length}か所）。座標は予報と同じ表記です。`
     : '現在、選んだ候補を置ける場所はありません。見送りで水を進められます。';
   updateCellPicker(view, locked);
 
