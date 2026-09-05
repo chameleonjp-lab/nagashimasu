@@ -31,7 +31,7 @@ flowchart TD
 | ルール | `src/domain/` | 地形、水量、水流、勝敗、スコアを決める | 画面文字列やCanvas座標を持つ |
 | 手番の進行 | `src/application/stage-controller.ts` | 入力を受け、Domainへ1回だけ渡し、受理結果を返す | 表示用に水流を再計算する |
 | 保存 | `src/application/*-storage.ts`、`stage-save.ts` | 進捗と受理済み操作を保存・復元する | 未受理の入力を進行状態として保存する |
-| 表示用変換 | `src/presentation/stage-projection.ts`、`stage-preview.ts`、`candidate-shape.ts` | 予報、危険度、説明文、候補カードの基準セル表示をDomainの結果から作る | 独自の勝敗判定を作る |
+| 表示用変換 | `src/presentation/stage-projection.ts`、`stage-preview.ts`、`stage-copy.ts`、`game-copy.ts`、`candidate-shape.ts` | 予報、危険度、画面文言、候補カードの基準セル表示をDomainの結果から作る | 独自の勝敗判定を作る |
 | 盤面表示 | `src/presentation/board-view-contract.ts`、`three-board-math.ts`、`three-board-frame.ts`、`three-board-view.ts` | 正本のsnapshot、preview、projection、traceをThree.jsの立体表示と入力へ変換する | 水流、排水、危険度、勝敗を独自に計算する |
 | 画面進行 | `src/main.ts` | 画面の表示段階、ボタン、再生の開始・終了をつなぐ | 水流の規則を直接実装する |
 | 検査 | `tests/unit/`、`tests/dist/` | 各層の契約と配布物を検査する | CI成功だけで実機合格と扱う |
