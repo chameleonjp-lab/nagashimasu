@@ -46,6 +46,7 @@ import type {
 } from './presentation/board-view-contract';
 import { buildStageProjection, riskLabel } from './presentation/stage-projection';
 import { buildStagePreviewSummary } from './presentation/stage-preview';
+import { firstActionGuideText } from './presentation/first-action-guide';
 import {
   buildCandidateShapeLayout,
   candidateShapeLabel
@@ -129,15 +130,6 @@ function stageGoalExplanation(definition: ValidatedStageDefinition): string {
     case 'protect':
       return `雨のたびに保護対象を浸水させず、${definition.objective.target}回守るとクリアです。`;
   }
-}
-
-function stageFirstActionExplanation(
-  definition: ValidatedStageDefinition,
-  selectedCandidate: string
-): string {
-  return definition.id === 'stage-01-first-pond' && selectedCandidate === '候補A'
-    ? '最初は候補Aが選択済みです。緑の丸を1つ押して、まず仮置きしてみてください。'
-    : `${selectedCandidate}を選択中です。緑の丸を1つ押して、まず仮置きしてみてください。`;
 }
 
 function stageNumber(definition: ValidatedStageDefinition): number {
@@ -1266,7 +1258,8 @@ function updateTurnGuide(
     action = '最初の一手: 緑の丸を1つ押してください。';
     const selectedCandidate = view.candidates.find((candidate) => candidate.selected);
     const selectedCandidateLabel = selectedCandidate?.slot === 1 ? '候補B' : '候補A';
-    detail = `${stageFirstActionExplanation(currentStage, selectedCandidateLabel)} ${stageGoalExplanation(currentStage)}`;
+    const firstRainTurn = currentStage.rainEvents[0]?.turn ?? null;
+    detail = `${firstActionGuideText(firstRainTurn, selectedCandidateLabel)} ${stageGoalExplanation(currentStage)}`;
   } else {
     step = 1;
     stepLabel = 'ステップ1〜2 / 3';
