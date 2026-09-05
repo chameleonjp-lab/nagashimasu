@@ -1187,6 +1187,13 @@ export class ThreeBoardView {
       setMeshPosition(entry.safe, edgePosition);
       setDirectionQuaternion(entry.safe, direction);
       entry.safe.visible = (safeMask & entry.direction) !== 0;
+      if (entry.safe.visible) {
+        this.labels.use('安全な出口', {
+          x: edgePosition.x,
+          y: edgePosition.y + 0.3,
+          z: edgePosition.z
+        }, 0.38, { color: '#06263a', background: 'rgba(142, 227, 207, 0.94)' });
+      }
       setMeshPosition(entry.danger, edgePosition);
       entry.danger.visible = (dangerMask & entry.direction) !== 0;
       entry.danger.scale.setScalar(1.1);
