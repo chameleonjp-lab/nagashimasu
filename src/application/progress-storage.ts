@@ -70,7 +70,9 @@ type PlainRecord = Record<string, unknown>;
 
 const DEFAULT_PROGRESS: ProgressSaveV2 = Object.freeze({
   version: PROGRESS_SAVE_VERSION,
-  timerMode: 'standard',
+  // Stage 3 is the first timed stage. Give a new player the longer preset
+  // while keeping standard and unlimited available in the stage picker.
+  timerMode: 'extended',
   playbackSpeed: 'standard',
   tutorialSeen: false,
   lastStageId: 'stage-01-first-pond',
