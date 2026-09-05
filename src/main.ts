@@ -33,7 +33,6 @@ import type {
 import { getStageObjectiveProgress } from './domain/stage-session';
 import type {
   StageExecution,
-  StageTracePhase,
   StageTurnPreview
 } from './domain/stage-session';
 import type { BoardSnapshot } from './domain/types';
@@ -47,6 +46,12 @@ import type {
 import { buildStageProjection, riskLabel } from './presentation/stage-projection';
 import { buildStagePreviewSummary } from './presentation/stage-preview';
 import { firstActionGuideText } from './presentation/first-action-guide';
+import {
+  failureReasonText,
+  playbackGuideText,
+  rejectionReasonText,
+  resultVisualText
+} from './presentation/game-copy';
 import {
   objectiveProgressTitle,
   phaseLabel,
@@ -954,7 +959,7 @@ function handleTimeout(): void {
       turnPlaybackVisualForView(beforeView, turnPreview)
     );
   } else {
-    lastMessage = reasonText(execution.reason);
+    lastMessage = rejectionReasonText(execution.reason);
   }
   render();
 }
@@ -1154,24 +1159,6 @@ function updatePhaseTimeline(
   }
 }
 
-function playbackGuideText(
-  phase: StageTracePhase,
-  flowStep: number | null
-): { readonly action: string; readonly detail: string } {
-  switch (phase) {
-    case 'construction':
-      return { action: 'いま起きていること: 地面の高さを変えています。', detail: '選んだ配置を盤面へ反映しています。' };
-    case 'rain':
-      return { action: 'いま起きていること: 予報どおりに雨が降っています。', detail: '雨が降ったセルと雨量を盤面で確認できます。' };
-    case 'flow':
-      return { action: `いま起きていること: 水が移動しています（${flowStep ?? '-'}回目）。`, detail: '水は低い方へ流れ、安全な出口か危険側へ進みます。' };
-    case 'evaluation':
-      return { action: 'いま起きていること: 目標を達成したか確認しています。', detail: '処理が終わるまで少し待ってください。' };
-    case 'undo':
-      return { action: 'いま起きていること: 直前の手を元に戻しています。', detail: '元に戻った盤面を確認してから、次の手を選べます。' };
-  }
-}
-
 function updateTurnGuide(
   view: StageControllerView,
   playbackFrame: TracePlaybackFrame | null
@@ -1231,26 +1218,6 @@ function updateTurnGuide(
   for (const element of turnGuideStepElements) {
     element.classList.toggle('is-current', Number(element.dataset['guideStep']) === step);
   }
-}
-
-function failureReasonText(reason: string): string {
-  const labels: Readonly<Record<string, string>> = {
-    'danger-leak': '危険側へ流出しました',
-    'protected-overflow': '保護対象が浸水しました',
-    'objective-not-met': 'ステージの目的を達成できませんでした'
-  };
-  return labels[reason] ?? reason;
-}
-
-function resultVisualText(view: StageControllerView): string {
-  if (view.snapshot.phase === 'cleared') return 'クリア：目標を達成しました';
-  if (view.snapshot.failureReasons.includes('protected-overflow')) {
-    return '失敗：保護対象が浸水しました';
-  }
-  if (view.snapshot.failureReasons.includes('danger-leak')) {
-    return '失敗：水が危険側へ流れました';
-  }
-  return '失敗：目標を達成できませんでした';
 }
 
 function boardForPlayback(
@@ -1356,22 +1323,6 @@ function selectCellAt(clientX: number, clientY: number): void {
     if (isMobileViewport()) setMobileControlsOpen(true);
     render();
   }
-}
-
-function reasonText(reason: string | null): string {
-  if (reason === null) return '';
-  const labels: Readonly<Record<string, string>> = {
-    'cell-out-of-bounds': '盤面の外です。',
-    'anchor-out-of-bounds': '置き場所が盤面の外です。',
-    'construction-forbidden': 'ここは施工できません。',
-    'terrain-limit': '地形の高さ上限または下限に達します。',
-    'candidate-exhausted': '候補が尽きています。',
-    'timer-disabled': 'このステージではタイムアウトを使えません。',
-    'stage-complete': 'このステージは終了しています。',
-    'undo-already-used': 'Undoはこのステージで1回だけ使えます。',
-    'undo-unavailable': '戻せる手番がありません。'
-  };
-  return labels[reason] ?? `操作を受け付けません（${reason}）。`;
 }
 
 function renderCandidateCard(
@@ -1488,7 +1439,7 @@ function render(): void {
       (view.snapshot.phase === 'cleared' || view.snapshot.phase === 'failed')
       ? view.snapshot.phase
       : null,
-    resultText: resultVisualText(view),
+    resultText: resultVisualText(view.snapshot.phase, view.snapshot.failureReasons),
     objectiveProgress,
     objectiveLabel: objectiveProgressTitle(currentStage),
     storageCells,
@@ -1595,7 +1546,7 @@ function render(): void {
   undoButton.disabled = locked || view.snapshot.undoUsed || view.snapshot.revision === 0;
 
   const validationMessage = view.validation?.valid === false
-    ? reasonText(view.validation.reason)
+    ? rejectionReasonText(view.validation.reason)
     : '';
   messageElement.textContent = playbackFrame === null
     ? validationMessage || lastMessage
@@ -1759,7 +1710,7 @@ confirmButton.addEventListener('click', () => {
       turnPlaybackVisualForView(beforeView, beforeView.preview)
     );
   } else {
-    lastMessage = reasonText(execution.reason);
+    lastMessage = rejectionReasonText(execution.reason);
   }
   render();
 });
@@ -1769,7 +1720,7 @@ skipButton.addEventListener('click', () => {
   const beforeView = controller.view;
   const turnPreview = controller.previewSkip();
   const execution = controller.skip();
-  lastMessage = execution.accepted ? '施工を見送りました。' : reasonText(execution.reason);
+  lastMessage = execution.accepted ? '施工を見送りました。' : rejectionReasonText(execution.reason);
   if (execution.accepted) {
     startPlayback(
       execution,
@@ -1785,7 +1736,7 @@ undoButton.addEventListener('click', () => {
   if (playback !== null || paused) return;
   const beforeView = controller.view;
   const execution = controller.undo();
-  lastMessage = execution.accepted ? '直前の手を取り消しました。' : reasonText(execution.reason);
+  lastMessage = execution.accepted ? '直前の手を取り消しました。' : rejectionReasonText(execution.reason);
   if (execution.accepted) {
     startPlayback(
       execution,
