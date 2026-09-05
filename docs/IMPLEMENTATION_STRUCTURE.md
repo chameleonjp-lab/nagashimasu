@@ -1,7 +1,7 @@
 # ナガシマス 実装構成図
 
 - **状態:** P0再設計対応中
-- **更新日:** 2026-09-03（JST）
+- **更新日:** 2026-09-05（JST）
 - **対象:** `chameleonjp-lab/nagashimasu`
 
 ## この文書の目的
@@ -31,7 +31,7 @@ flowchart TD
 | ルール | `src/domain/` | 地形、水量、水流、勝敗、スコアを決める | 画面文字列やCanvas座標を持つ |
 | 手番の進行 | `src/application/stage-controller.ts` | 入力を受け、Domainへ1回だけ渡し、受理結果を返す | 表示用に水流を再計算する |
 | 保存 | `src/application/*-storage.ts`、`stage-save.ts` | 進捗と受理済み操作を保存・復元する | 未受理の入力を進行状態として保存する |
-| 表示用変換 | `src/presentation/stage-projection.ts`、`stage-preview.ts` | 予報、危険度、説明文をDomainの結果から作る | 独自の勝敗判定を作る |
+| 表示用変換 | `src/presentation/stage-projection.ts`、`stage-preview.ts`、`candidate-shape.ts` | 予報、危険度、説明文、候補カードの基準セル表示をDomainの結果から作る | 独自の勝敗判定を作る |
 | 盤面表示 | `src/presentation/board-view-contract.ts`、`three-board-math.ts`、`three-board-frame.ts`、`three-board-view.ts` | 正本のsnapshot、preview、projection、traceをThree.jsの立体表示と入力へ変換する | 水流、排水、危険度、勝敗を独自に計算する |
 | 画面進行 | `src/main.ts` | 画面の表示段階、ボタン、再生の開始・終了をつなぐ | 水流の規則を直接実装する |
 | 検査 | `tests/unit/`、`tests/dist/` | 各層の契約と配布物を検査する | CI成功だけで実機合格と扱う |
@@ -126,6 +126,7 @@ flowchart LR
 - ポインター中断で仮置きを勝手に消さないようにした。
 - 盤面本体をThree.js 0.185.1のWebGLRenderer、Scene、OrthographicCameraへ置き換えた。
 - Three.js本体をゲーム開始・保存再開時のdynamic importで遅延読み込みし、初期化失敗とcontext lost/restoredを盤面内の状態表示へつないだ。
+- 候補カードの形状シルエット内へ、盤面の緑の丸に対応する基準セルを`◎`で表示した。回転後に基準セルが左上から移動する形状も、同じ表示変換で確認できる。
 - Geometry、Material、Texture、Sprite、Renderer、カメラ補間を管理し、再描画で無制限に生成しない構成にした。
 
 ### 次の検査で確認すること
