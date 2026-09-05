@@ -124,7 +124,7 @@ function stageGoalExplanation(definition: ValidatedStageDefinition): string {
     case 'stored-water':
       return `池に雨水をため、合計${definition.objective.target}まで集めるとクリアです。`;
     case 'safe-drain':
-      return `水を安全な出口へ流し、合計${definition.objective.target}以上にするとクリアです。`;
+      return `緑の辺の「安全な出口」へ水を流し、合計${definition.objective.target}以上にするとクリアです。`;
     case 'protect':
       return `雨のたびに保護対象を浸水させず、${definition.objective.target}回守るとクリアです。`;
   }
