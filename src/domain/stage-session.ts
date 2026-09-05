@@ -153,8 +153,16 @@ export interface StageTurnPreview {
   readonly terrainAfterConstruction: readonly number[];
   readonly rainCells: readonly RainEvent[];
   readonly boardAfterRain: BoardSnapshot;
+  /** The first fixed flow step, kept for the existing preview/trace contract. */
   readonly nextFlow: FlowStepResult;
   readonly boardAfterNextFlow: BoardSnapshot;
+  /** Every fixed flow step that will run when this action is confirmed. */
+  readonly flowSteps: readonly FlowStepResult[];
+  /** The authoritative board after this entire turn has finished. */
+  readonly boardAfterTurn: BoardSnapshot;
+  readonly objectiveMet: boolean;
+  readonly failureReasons: readonly StageFailureReason[];
+  readonly phase: StagePhase;
 }
 
 export interface StageRainForecast {
@@ -902,8 +910,10 @@ export function validateStageAction(
 }
 
 /**
- * Previews construction, this turn's rain, and exactly one production flow
- * step on a clone. No candidate, timer, metrics, log, or source state advances.
+ * Previews the whole atomic turn on a pure reducer state. The first flow step
+ * and its board snapshot remain available for the existing board contract,
+ * while the full fixed-step horizon exposes the final outcome as well. No
+ * candidate, timer, metrics, log, or source state advances.
  */
 export function previewStageTurn(
   definition: ValidatedStageDefinition,
@@ -927,7 +937,27 @@ export function previewStageTurn(
   const rainCells = rainEvent?.turn === nextTurn ? rainEvent.cells : EMPTY_RAIN;
   if (rainCells.length > 0) board.addRain(rainCells);
   const boardAfterRain = board.snapshot();
-  const nextFlow = advanceWaterFlow(board, { config: state.waterRules });
+  const firstFlowBoard = BoardState.fromSnapshot(boardAfterRain);
+  advanceWaterFlow(firstFlowBoard, { config: state.waterRules });
+
+  // Use the same pure reducer as confirmation for the complete turn. This
+  // keeps preview evaluation, metrics, and failure precedence identical to
+  // the authoritative execution path instead of recreating them here.
+  const reduction = reduceStageAction(definition, state, action);
+  if (!reduction.accepted || reduction.replayed) {
+    throw new Error('valid stage preview could not be reduced');
+  }
+  const flowSteps = Object.freeze(
+    reduction.trace.flatMap((event) =>
+      event.phase === 'flow' && event.flowResult !== null
+        ? [event.flowResult]
+        : []
+    )
+  );
+  const nextFlow = flowSteps[0];
+  if (nextFlow === undefined) {
+    throw new Error('stage preview is missing its production flow steps');
+  }
 
   return Object.freeze({
     valid: true,
@@ -939,7 +969,12 @@ export function previewStageTurn(
     ),
     boardAfterRain,
     nextFlow,
-    boardAfterNextFlow: board.snapshot()
+    boardAfterNextFlow: firstFlowBoard.snapshot(),
+    flowSteps,
+    boardAfterTurn: reduction.state.gameplay.board,
+    objectiveMet: reduction.state.gameplay.objectiveMet,
+    failureReasons: reduction.state.gameplay.failureReasons,
+    phase: reduction.state.gameplay.phase
   });
 }
 

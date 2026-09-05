@@ -268,7 +268,7 @@ describe('M2 stage-session adversarial contract', () => {
     }
   });
 
-  it('previews one production flow step without mutating state and matches execution step one', () => {
+  it('previews every production flow step without mutating state and matches execution', () => {
     const stage = makeStage({
       rainEvents: [{ turn: 1, cells: [{ index: 27, amount: 8 }] }]
     });
@@ -283,6 +283,12 @@ describe('M2 stage-session adversarial contract', () => {
     expect(preview.rainCells).toEqual([{ index: 27, amount: 8 }]);
     expect(preview.boardAfterRain.water[27]).toBe(8);
     expect(preview.boardAfterRain.flowStep).toBe(0);
+    expect(preview.flowSteps).toHaveLength(2);
+    expect(preview.boardAfterTurn).toEqual(
+      expect.objectContaining({ flowStep: 2 })
+    );
+    expect(preview.phase).toBe('awaiting-turn');
+    expect(preview.failureReasons).toEqual([]);
     expect(captureAuditState(session)).toEqual(before);
 
     const execution = session.execute(action);
@@ -290,6 +296,32 @@ describe('M2 stage-session adversarial contract', () => {
     expect(firstFlow?.flowResult).toEqual(preview.nextFlow);
     expect(firstFlow?.flowStep).toBe(preview.boardAfterNextFlow.flowStep);
     expect(execution.snapshot.board.terrain).toEqual(preview.terrainAfterConstruction);
+    expect(execution.snapshot.board).toEqual(preview.boardAfterTurn);
+    expect(execution.snapshot.phase).toBe(preview.phase);
+    expect(execution.snapshot.failureReasons).toEqual(preview.failureReasons);
+  });
+
+  it('reports a failure that appears after the first preview step', () => {
+    const board = boardWithTerrain(3);
+    board.terrain[6] = 2;
+    board.terrain[7] = 1;
+    board.dangerEdgeMask[7] = Direction.East;
+    board.water[6] = 8;
+    const stage = makeStage({
+      board,
+      rainEvents: [],
+      objective: { type: 'stored-water', target: 1 },
+      failure: { maxDangerLeak: 0, maxPeakProtectedOverflow: 65_535 }
+    });
+    const session = createStageSession(stage);
+    const preview = session.preview(skip(0, 0));
+
+    expect(preview.valid).toBe(true);
+    if (!('nextFlow' in preview)) throw new Error('expected a valid turn preview');
+    expect(preview.nextFlow.dangerLeaked).toBe(0);
+    expect(preview.flowSteps[1]?.dangerLeaked).toBeGreaterThan(0);
+    expect(preview.phase).toBe('failed');
+    expect(preview.failureReasons).toContain('danger-leak');
   });
 
   it('rejects board edges and construction-mask violations without consuming state', () => {

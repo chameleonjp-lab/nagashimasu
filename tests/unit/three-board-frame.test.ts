@@ -5,7 +5,7 @@ import { getBuiltInStage } from '../../src/domain/stages';
 import { buildThreeBoardFrame } from '../../src/presentation/three-board-frame';
 
 describe('three board frame contract', () => {
-  it('uses preview terrain and boardAfterNextFlow water without changing inputs', () => {
+  it('uses preview terrain and the full-turn water snapshot without changing inputs', () => {
     const stage = getBuiltInStage('stage-01-first-pond');
     if (stage === undefined) throw new Error('stage fixture missing');
     const controller = new StageController(stage);
@@ -24,8 +24,11 @@ describe('three board frame contract', () => {
     });
 
     expect(frame.terrain).toEqual(view.preview.terrainAfterConstruction);
-    expect(frame.water).toEqual(view.preview.boardAfterNextFlow.water);
+    expect(frame.water).toEqual(view.preview.boardAfterTurn.water);
     expect(frame.previewFlow).toBe(view.preview.nextFlow);
+    expect(frame.previewFinalFlow).toBe(
+      view.preview.flowSteps[view.preview.flowSteps.length - 1]
+    );
     expect(JSON.stringify(view.snapshot.board)).toBe(snapshotBefore);
     expect(JSON.stringify(view.preview)).toBe(previewBefore);
   });

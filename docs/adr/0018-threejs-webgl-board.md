@@ -41,8 +41,8 @@ Canvas 2Dの盤面Rendererは、地形、水、雨、水流、予報、危険表
 ### 視覚情報と再生
 
 - 地形、水面、水量、池、保護対象、安全出口、危険出口、施工前後、施工可能セル、選択セル、予報、雨雲・雨粒・波紋、危険度は入力された証拠から表示する。
-- `StageTurnPreview.boardAfterNextFlow.water`をプレビュー水量、`StageProjection.forecastCells`を予報、`StageTraceEvent.rainCells`を発生中の雨として使う。
-- 水流は`nextFlow`またはtraceの`flowResult.transfers`をそのまま使う。各`WaterTransfer`の`from`、`to`、`direction`、`kind`、`amount`を保持し、`to: null`は記録されたdirectionの盤面外終点へ伸ばす。
+- `StageTurnPreview.boardAfterTurn.water`をプレビュー水量、`StageProjection.forecastCells`を予報、`StageTraceEvent.rainCells`を発生中の雨として使う。`boardAfterNextFlow`は最初の固定ステップを検査・表示する既存契約として残す。
+- 水流はpreviewの最終固定ステップ、またはtraceの`flowResult.transfers`をそのまま使う。各`WaterTransfer`の`from`、`to`、`direction`、`kind`、`amount`を保持し、`to: null`は記録されたdirectionの盤面外終点へ伸ばす。危険度の予告はpreviewの全固定ステップの証拠を使う。
 - TracePlaybackがphase、event、progressの正本である。Three.js側にゲーム状態を進める常時ループ、独自の水流計算、独自の雨生成は置かない。許可する`requestAnimationFrame`はカメラ補間とTracePlaybackからの表示更新だけとする。
 - `prefers-reduced-motion`ではカメラ補間、粒子移動、点滅、脈動を抑えるが、雨量、水量、移動先、結果の情報は省略しない。
 

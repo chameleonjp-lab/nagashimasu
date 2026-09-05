@@ -27,6 +27,7 @@ import {
 } from './three-board-picking';
 import type { ProjectedCellCenter } from './three-board-picking';
 import { flowParticleProgress, waterVisualLevel } from './board-visuals';
+import { cellCoordinate } from './cell-label';
 import { clampPlaybackProgress, playbackPulseForMotion } from './playback-visuals';
 import { ThreeBoardLabelPool } from './three-board-labels';
 import { ThreeResourceTracker } from './three-resource-tracker';
@@ -1157,7 +1158,7 @@ export class ThreeBoardView {
       }
 
       if (labelCells === null || labelCells.has(index)) {
-        this.labels.use(String(index + 1), {
+        this.labels.use(cellCoordinate(index), {
           x: geometry.center.x,
           y: topY + 0.16,
           z: geometry.center.z
@@ -1275,7 +1276,7 @@ export class ThreeBoardView {
     for (const warning of this.flowWarningMarkers) warning.visible = false;
 
     const activeFlow = frame.activeFlow;
-    const flow = activeFlow ?? frame.previewFlow;
+    const flow = activeFlow ?? frame.previewFinalFlow;
     if (flow === null) return;
     const isActive = activeFlow !== null;
     const progress = isActive

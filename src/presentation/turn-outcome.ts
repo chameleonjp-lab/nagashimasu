@@ -8,6 +8,7 @@ import type {
   StagePhase,
   StageTraceEvent
 } from '../domain/stage-session';
+import { cellLabel } from './cell-label';
 
 export interface TurnOutcomeSummary {
   readonly construction: string;
@@ -20,10 +21,6 @@ export interface TurnOutcomeInput {
   readonly construction: string;
   readonly trace: StageExecution['trace'];
   readonly phase: StagePhase;
-}
-
-function cellLabel(index: number): string {
-  return `セル${index + 1}`;
 }
 
 function uniqueLabels(values: readonly string[]): readonly string[] {

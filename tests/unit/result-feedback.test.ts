@@ -28,7 +28,7 @@ function input(overrides: Partial<ResultFeedbackInput> = {}): ResultFeedbackInpu
 
 describe('result feedback', () => {
   it('identifies the first protected cell when the domain provides it', () => {
-    expect(resultFirstBreakText(input())).toBe('最初の破綻: 保護対象のセル2');
+    expect(resultFirstBreakText(input())).toBe('最初の破綻: 保護対象のセルB1');
   });
 
   it('uses a generic danger outlet when no exact danger cell exists', () => {
