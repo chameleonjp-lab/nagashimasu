@@ -64,10 +64,7 @@ import {
   stageObjectiveText,
   terminalPhaseLabel
 } from './presentation/stage-copy';
-import {
-  buildCandidateShapeLayout,
-  candidateShapeLabel
-} from './presentation/candidate-shape';
+import { buildCandidateCardPresentation } from './presentation/candidate-card';
 import { cellLabel } from './presentation/cell-label';
 import {
   resultCauseText,
@@ -1175,7 +1172,8 @@ function renderCandidateCard(
   card: StageControllerView['candidates'][number],
   rotation: StageRotation
 ): void {
-  const layout = buildCandidateShapeLayout(card.offsets, rotation);
+  const presentation = buildCandidateCardPresentation({ ...card, rotation });
+  const layout = presentation.layout;
   const offsets = layout.offsets;
   const occupied = new Set(offsets.map((offset) => `${offset.row},${offset.column}`));
   const anchorKey = `${layout.anchor.row},${layout.anchor.column}`;
@@ -1199,15 +1197,13 @@ function renderCandidateCard(
   const copy = document.createElement('span');
   copy.className = 'candidate-copy';
   const title = document.createElement('strong');
-  const titleText = `${card.slot === 0 ? '候補A' : '候補B'}: ${card.delta > 0 ? '上げる' : '下げる'}`;
-  title.textContent = titleText;
+  title.textContent = presentation.titleText;
   const detail = document.createElement('small');
-  const shapeText = candidateShapeLabel(offsets);
-  detail.textContent = `${shapeText}／◎基準セル／パーツの向き${rotation + 1}`;
+  detail.textContent = presentation.detailText;
   copy.append(title, detail);
   button.replaceChildren(shape, copy);
-  button.title = `${card.pieceId} / token ${card.tokenId}`;
-  button.setAttribute('aria-label', `${titleText}、${shapeText}、◎が盤面の緑の丸に対応、パーツの向き${rotation + 1}`);
+  button.title = presentation.titleAttribute;
+  button.setAttribute('aria-label', presentation.ariaLabel);
 }
 
 function updateCellPicker(view: StageControllerView, locked: boolean): void {
