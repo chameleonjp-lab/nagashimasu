@@ -1618,6 +1618,11 @@ button:disabled {
 }
 
 @media (max-width: 520px) {
+  /* Keep the first decision visible; defer duplicate or non-essential links. */
+  .start-secondary-info {
+    display: none;
+  }
+
   .stage-list {
     grid-template-columns: 1fr;
   }

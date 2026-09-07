@@ -32,4 +32,11 @@ describe('app markup', () => {
     expect(markup).toContain('href="https://example.test/lab"');
     expect(markup).toContain('target="_blank" rel="noopener noreferrer"');
   });
+
+  it('marks non-essential start-screen details for narrow-screen reduction', () => {
+    expect(markup).toContain('game-loop-visual start-secondary-info');
+    expect(markup).toContain('platform-actions start-secondary-info');
+    expect(markup).toContain('id="tutorial-steps"');
+    expect(markup).toContain('id="stage-picker-title"');
+  });
 });

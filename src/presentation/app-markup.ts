@@ -15,7 +15,7 @@ export function buildAppMarkup(input: AppMarkupInput): string {
       <h1 id="start-title">ナガシマス</h1>
       <p class="game-purpose">雨水の流れを変えるパズル</p>
       <p class="start-lead">雨が降る前に地面を上げ下げして、水をためる場所や安全な出口へ流します。ステージごとの目標を達成するとクリアです。</p>
-      <section class="game-loop-visual" aria-label="ゲームの流れ">
+      <section class="game-loop-visual start-secondary-info" aria-label="ゲームの流れ">
         <div class="game-loop-step"><span class="loop-icon loop-terrain" aria-hidden="true">▰</span><strong>地形を作る</strong><small>上げる・下げる</small></div>
         <span class="loop-arrow" aria-hidden="true">→</span>
         <div class="game-loop-step"><span class="loop-icon loop-rain" aria-hidden="true">☁</span><strong>雨が降る</strong><small>予報を読む</small></div>
@@ -33,7 +33,7 @@ export function buildAppMarkup(input: AppMarkupInput): string {
         <input id="player-name" type="text" maxlength="20" autocomplete="name" placeholder="20文字以内で入力" required />
         <p class="player-name-note" id="player-name-note">名前を入力するとゲームを開始できます。</p>
       </section>
-      <div class="platform-actions" aria-label="ゲームの共有と実験場">
+      <div class="platform-actions start-secondary-info" aria-label="ゲームの共有と実験場">
         <button id="home-share" type="button">このゲームをシェア</button>
         <span class="platform-status" id="home-share-status" role="status" aria-live="polite"></span>
         <a class="platform-link" href="${input.labUrl}" target="_blank" rel="noopener noreferrer">カメレオンJPの実験場</a>
