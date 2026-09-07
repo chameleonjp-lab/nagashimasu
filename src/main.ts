@@ -615,10 +615,12 @@ function continueAfterBoardReady(view: ThreeBoardView | null): void {
   if (timerPausedForBoardRecovery && turnTimer?.paused) {
     timerPausedForBoardRecovery = false;
     turnTimer.resume();
+    if (mobileControlsOpen) window.requestAnimationFrame(focusMobileControls);
     return;
   }
   timerPausedForBoardRecovery = false;
   if (controller.view.snapshot.phase === 'awaiting-turn') startTurnTimer();
+  if (mobileControlsOpen) window.requestAnimationFrame(focusMobileControls);
 }
 
 function cleanPlayerName(value: string): string {
@@ -777,6 +779,29 @@ function isMobileViewport(): boolean {
   return window.matchMedia('(max-width: 759px)').matches;
 }
 
+function focusMobileControls(): void {
+  if (!mobileControlsOpen || !isMobileViewport() || gameShell.hidden) return;
+  const view = controller.view;
+  const target = mobileControlsFocusTarget({
+    phase: view.snapshot.phase,
+    hasPendingPlacement: view.pending !== null,
+    selectedCandidateSlot: view.candidates.find((candidate) => candidate.selected)?.slot ?? null,
+    boardReady: boardViewState === 'ready',
+    inputLocked: boardViewInputLocked,
+    playbackActive: playback !== null
+  });
+  const element = target === 'candidate-a'
+    ? candidateButtons[0]
+    : target === 'candidate-b'
+      ? candidateButtons[1]
+      : target === 'confirm'
+        ? confirmButton
+        : target === 'retry'
+          ? retryButton
+          : mobileControlsClose;
+  element.focus({ preventScroll: true });
+}
+
 function setMobileControlsOpen(open: boolean): void {
   const wasOpen = mobileControlsOpen;
   mobileControlsOpen = open;
@@ -789,28 +814,7 @@ function setMobileControlsOpen(open: boolean): void {
     window.requestAnimationFrame(() => mobileControlsToggle.focus({ preventScroll: true }));
   }
   if (!wasOpen && open && isMobileViewport() && gameShell.hidden === false) {
-    window.requestAnimationFrame(() => {
-      if (!mobileControlsOpen || gameShell.hidden) return;
-      const view = controller.view;
-      const target = mobileControlsFocusTarget({
-        phase: view.snapshot.phase,
-        hasPendingPlacement: view.pending !== null,
-        selectedCandidateSlot: view.candidates.find((candidate) => candidate.selected)?.slot ?? null,
-        boardReady: boardViewState === 'ready',
-        inputLocked: boardViewInputLocked,
-        playbackActive: playback !== null
-      });
-      const element = target === 'candidate-a'
-        ? candidateButtons[0]
-        : target === 'candidate-b'
-          ? candidateButtons[1]
-          : target === 'confirm'
-            ? confirmButton
-            : target === 'retry'
-              ? retryButton
-              : mobileControlsClose;
-      element.focus({ preventScroll: true });
-    });
+    window.requestAnimationFrame(focusMobileControls);
   }
 }
 
