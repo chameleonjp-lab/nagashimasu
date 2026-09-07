@@ -20,7 +20,8 @@ describe('three board frame contract', () => {
     const frame = buildThreeBoardFrame(view.snapshot.board, {
       preview: view.preview,
       riskCells: [],
-      forecastCells: []
+      forecastCells: [],
+      waterVisualCap: 32
     });
 
     expect(frame.terrain).toEqual(view.preview.terrainAfterConstruction);
@@ -29,6 +30,7 @@ describe('three board frame contract', () => {
     expect(frame.previewFinalFlow).toBe(
       view.preview.flowSteps[view.preview.flowSteps.length - 1]
     );
+    expect(frame.waterVisualCap).toBe(32);
     expect(JSON.stringify(view.snapshot.board)).toBe(snapshotBefore);
     expect(JSON.stringify(view.preview)).toBe(previewBefore);
   });

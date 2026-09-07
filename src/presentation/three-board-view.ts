@@ -1038,7 +1038,7 @@ export class ThreeBoardView {
       const waterAmount = frame.water[index] ?? 0;
       const water = this.waterMeshes[index]!;
       if (waterAmount > 0) {
-        const visual = waterVisualLevel(waterAmount);
+        const visual = waterVisualLevel(waterAmount, frame.waterVisualCap);
         const waterHeight = Math.max(0.045, visual.depth);
         water.visible = true;
         water.scale.set(1, waterHeight, 1);
