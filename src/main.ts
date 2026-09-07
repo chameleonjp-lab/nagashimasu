@@ -65,6 +65,7 @@ import {
   terminalPhaseLabel
 } from './presentation/stage-copy';
 import { renderCandidateCard } from './presentation/candidate-card-dom';
+import { renderCellPicker } from './presentation/cell-picker-dom';
 import { cellLabel } from './presentation/cell-label';
 import {
   resultCauseText,
@@ -1167,28 +1168,6 @@ function selectCellAt(clientX: number, clientY: number): void {
   }
 }
 
-function updateCellPicker(view: StageControllerView, locked: boolean): void {
-  const legalAnchors = new Set(view.legalAnchorIndices);
-  const canSelect = !locked && view.snapshot.phase === 'awaiting-turn';
-  cellPickerHelpElement.textContent = legalAnchors.size > 0
-    ? `施工可能な座標は${legalAnchors.size}か所です。有効な座標を押すと仮置きします。`
-    : '現在、選んだ候補を置けるセルはありません。見送りで水を進められます。';
-  for (const button of cellPickerButtons) {
-    const index = Number(button.dataset['cellIndex']);
-    const legal = Number.isSafeInteger(index) && legalAnchors.has(index);
-    const selected = view.pending?.anchorIndex === index;
-    button.disabled = !canSelect || !legal;
-    button.classList.toggle('is-legal', legal);
-    button.setAttribute('aria-pressed', String(selected));
-    button.setAttribute(
-      'aria-label',
-      legal
-        ? `${cellLabel(index)}${selected ? '（選択中）' : '（施工可能）'}`
-        : `${cellLabel(index)}（現在は施工不可）`
-    );
-  }
-}
-
 function render(): void {
   const view = controller.view;
   const playbackFrame: TracePlaybackFrame | null = playback?.frame ?? null;
@@ -1327,7 +1306,7 @@ function render(): void {
         : '仮置きした場所を盤面で確認し、施工確定または取消を選びます。カードの◎が緑の丸です。'
       : `緑の丸（カードの◎）が、選んだ候補の基準セルです（${view.legalAnchorIndices.length}か所）。座標は予報と同じ表記です。`
     : '現在、選んだ候補を置ける場所はありません。見送りで水を進められます。';
-  updateCellPicker(view, locked);
+  renderCellPicker(cellPickerHelpElement, cellPickerButtons, view, locked);
 
   for (const card of view.candidates) {
     const button = candidateButtons[card.slot];
