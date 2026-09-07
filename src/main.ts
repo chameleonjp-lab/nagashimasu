@@ -54,6 +54,7 @@ import {
   resultVisualText
 } from './presentation/game-copy';
 import { mobileControlsFocusTarget } from './presentation/mobile-controls-focus';
+import { mobileControlsAccessibilityState } from './presentation/mobile-controls-a11y';
 import {
   objectiveProgressTitle,
   phaseLabel,
@@ -283,7 +284,7 @@ appRoot.innerHTML = `
       </div>
       <div class="mobile-stage-action">
         <p id="mobile-stage-prompt">操作を開いて、工事を選びます。</p>
-        <button id="mobile-controls-toggle" type="button" aria-expanded="false">工事を選ぶ</button>
+        <button id="mobile-controls-toggle" type="button" aria-expanded="false" aria-controls="game-controls" aria-haspopup="dialog">工事を選ぶ</button>
       </div>
       <section class="pause-panel" id="pause-panel" hidden aria-live="polite">
         <h2>一時停止中</h2>
@@ -291,10 +292,10 @@ appRoot.innerHTML = `
         <button id="resume" type="button">再開</button>
       </section>
     </section>
-    <div class="mobile-controls-backdrop" id="mobile-controls-backdrop" hidden></div>
-    <section class="game-controls" id="game-controls" aria-label="施工操作">
+    <div class="mobile-controls-backdrop" id="mobile-controls-backdrop" aria-hidden="true" hidden></div>
+    <section class="game-controls" id="game-controls" aria-labelledby="controls-sheet-title">
       <div class="controls-sheet-heading">
-        <h2 class="controls-title">この手の操作</h2>
+        <h2 class="controls-title" id="controls-sheet-title">この手の操作</h2>
         <button id="mobile-controls-close" type="button">盤面へ戻る</button>
       </div>
       <p class="construction-help" id="construction-help">緑の丸は、候補カードの◎に対応する基準セルです。座標は予報と同じ表記です。</p>
@@ -803,18 +804,67 @@ function focusMobileControls(): void {
   element.focus({ preventScroll: true });
 }
 
+function syncMobileControlsAccessibility(): void {
+  const state = mobileControlsAccessibilityState(isMobileViewport(), mobileControlsOpen);
+  if (state.role === null) gameControls.removeAttribute('role');
+  else gameControls.setAttribute('role', state.role);
+  if (state.ariaHidden === null) gameControls.removeAttribute('aria-hidden');
+  else gameControls.setAttribute('aria-hidden', String(state.ariaHidden));
+  if (state.ariaModal === null) gameControls.removeAttribute('aria-modal');
+  else gameControls.setAttribute('aria-modal', String(state.ariaModal));
+  gameControls.toggleAttribute('inert', state.inert);
+  mobileControlsToggle.setAttribute(
+    'aria-expanded',
+    String(isMobileViewport() && mobileControlsOpen)
+  );
+}
+
+function focusableMobileControls(): readonly HTMLElement[] {
+  return Array.from(gameControls.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'
+  )).filter((element) => !element.hidden && element.closest('[hidden]') === null);
+}
+
+function handleMobileControlsKeydown(event: KeyboardEvent): void {
+  if (!mobileControlsOpen || !isMobileViewport()) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    setMobileControlsOpen(false);
+    return;
+  }
+  if (event.key !== 'Tab') return;
+
+  const focusable = focusableMobileControls();
+  if (focusable.length === 0) return;
+  const first = focusable[0]!;
+  const last = focusable[focusable.length - 1]!;
+  const active = document.activeElement;
+  if (active === null || !gameControls.contains(active)) {
+    event.preventDefault();
+    (event.shiftKey ? last : first).focus();
+    return;
+  }
+  if (event.shiftKey && active === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
 function setMobileControlsOpen(open: boolean): void {
   const wasOpen = mobileControlsOpen;
   mobileControlsOpen = open;
   gameControls.classList.toggle('is-open', open);
-  gameControls.setAttribute('aria-hidden', String(!open && isMobileViewport()));
-  mobileControlsBackdrop.hidden = !open || !isMobileViewport();
-  mobileControlsToggle.setAttribute('aria-expanded', String(open));
-  document.body.classList.toggle('mobile-sheet-open', open && isMobileViewport());
-  if (wasOpen && !open && isMobileViewport() && gameShell.hidden === false) {
+  const mobile = isMobileViewport();
+  mobileControlsBackdrop.hidden = !open || !mobile;
+  document.body.classList.toggle('mobile-sheet-open', open && mobile);
+  syncMobileControlsAccessibility();
+  if (wasOpen && !open && mobile && gameShell.hidden === false) {
     window.requestAnimationFrame(() => mobileControlsToggle.focus({ preventScroll: true }));
   }
-  if (!wasOpen && open && isMobileViewport() && gameShell.hidden === false) {
+  if (!wasOpen && open && mobile && gameShell.hidden === false) {
     window.requestAnimationFrame(focusMobileControls);
   }
 }
@@ -1707,6 +1757,8 @@ mobileControlsBackdrop.addEventListener('click', () => {
   setMobileControlsOpen(false);
 });
 
+gameControls.addEventListener('keydown', handleMobileControlsKeydown);
+
 rotateButton.addEventListener('click', () => {
   if (playback !== null || paused) return;
   controller.rotate();
@@ -1895,8 +1947,13 @@ document.addEventListener('visibilitychange', () => {
   render();
 });
 
-window.addEventListener('resize', resizeCanvas, { passive: true });
-window.addEventListener('orientationchange', resizeCanvas, { passive: true });
+function handleViewportChange(): void {
+  syncMobileControlsAccessibility();
+  resizeCanvas();
+}
+
+window.addEventListener('resize', handleViewportChange, { passive: true });
+window.addEventListener('orientationchange', handleViewportChange, { passive: true });
 if ('ResizeObserver' in window) {
   new ResizeObserver(resizeCanvas).observe(stageElement);
 }
@@ -1906,3 +1963,4 @@ updateStagePicker();
 updateSavedGamePrompt();
 updateTutorialVisibility();
 renderPlayerNameState();
+syncMobileControlsAccessibility();
