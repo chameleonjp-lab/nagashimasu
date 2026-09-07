@@ -42,6 +42,8 @@ export interface BoardRenderOptions {
   readonly resultHighlightCells?: readonly number[];
   /** When supplied, only these logical cells receive a number label. */
   readonly labelCells?: readonly number[];
+  /** Presentation-only water scale. Domain water amounts are not changed. */
+  readonly waterVisualCap?: number;
   readonly reducedMotion?: boolean;
   readonly background?: string;
 }

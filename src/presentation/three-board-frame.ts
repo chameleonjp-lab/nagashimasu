@@ -7,6 +7,7 @@ import type {
 import type { ForecastCellView, StageCellRiskView } from './stage-projection';
 import type { StageTracePhase, StageTurnPreview } from '../domain/stage-session';
 import type { FlowStepResult, RainEvent } from '../domain/types';
+import { MAX_VISUAL_WATER } from './board-visuals';
 
 export interface ThreeBoardFrame {
   readonly terrain: readonly number[];
@@ -35,6 +36,7 @@ export interface ThreeBoardFrame {
   readonly storageCells: readonly number[];
   readonly resultHighlightCells: readonly number[];
   readonly labelCells: readonly number[] | null;
+  readonly waterVisualCap: number;
   readonly reducedMotion: boolean;
   readonly background: string;
 }
@@ -115,6 +117,7 @@ export function buildThreeBoardFrame(
     labelCells: options.labelCells === undefined
       ? null
       : frozenNumbers(options.labelCells),
+    waterVisualCap: options.waterVisualCap ?? MAX_VISUAL_WATER,
     reducedMotion: options.reducedMotion ?? false,
     background: options.background ?? '#071521'
   });

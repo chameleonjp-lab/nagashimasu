@@ -1,6 +1,7 @@
 import { clampPlaybackProgress } from './playback-visuals';
+import type { ValidatedStageDefinition } from '../domain/stage-definition';
 
-/** The largest water amount that needs a different visual level in the MVP. */
+/** The minimum water amount represented by the presentation scale. */
 export const MAX_VISUAL_WATER = 24;
 
 export interface WaterVisualLevel {
@@ -20,19 +21,43 @@ function assertNonNegativeFinite(value: number, label: string): void {
  * Maps a domain water amount to a compact presentation level.
  *
  * The domain may hold much larger integers than the tutorial stages use. The
- * display intentionally saturates after MAX_VISUAL_WATER so that a flood is
- * still visible without allowing an extreme value to cover the whole board.
+ * default scale saturates at MAX_VISUAL_WATER, while callers can provide a
+ * stage-specific cap so large tutorial-stage amounts remain distinguishable.
  */
-export function waterVisualLevel(amount: number): WaterVisualLevel {
+export function waterVisualLevel(
+  amount: number,
+  visualCap = MAX_VISUAL_WATER
+): WaterVisualLevel {
   assertNonNegativeFinite(amount, 'amount');
-  const visibleAmount = Math.min(MAX_VISUAL_WATER, amount);
-  const ratio = visibleAmount === 0 ? 0 : 0.2 + (visibleAmount / MAX_VISUAL_WATER) * 0.8;
+  if (!Number.isFinite(visualCap) || visualCap <= 0) {
+    throw new RangeError('visualCap must be a positive finite number');
+  }
+  const visibleAmount = Math.min(visualCap, amount);
+  const ratio = visibleAmount === 0 ? 0 : 0.2 + (visibleAmount / visualCap) * 0.8;
   return Object.freeze({
     amount,
     ratio,
     lift: ratio * 0.34,
     depth: 0.08 + ratio * 0.22
   });
+}
+
+/**
+ * Gives each stage a presentation cap based on all water it can introduce.
+ * This changes only the visual scale; the domain water amounts remain intact.
+ */
+export function waterVisualCapForStage(
+  stage: Pick<ValidatedStageDefinition, 'board' | 'rainEvents'>
+): number {
+  const initialWater = stage.board.water.reduce((total, amount) => total + amount, 0);
+  const scheduledRain = stage.rainEvents.reduce(
+    (stageTotal, event) => event.cells.reduce(
+      (eventTotal, cell) => eventTotal + cell.amount,
+      stageTotal
+    ),
+    0
+  );
+  return Math.max(MAX_VISUAL_WATER, initialWater + scheduledRain);
 }
 
 /** Returns one deterministic moving-particle phase for a transfer. */
@@ -53,4 +78,3 @@ export function flowParticleProgress(
   const offset = particleIndex / particleCount;
   return (clampPlaybackProgress(progress) + offset) % 1;
 }
-

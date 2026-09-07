@@ -39,6 +39,7 @@ import type { BoardSnapshot } from './domain/types';
 import { BUILT_IN_STAGES, getBuiltInStage } from './domain/stages';
 import type { ValidatedStageDefinition } from './domain/stage-definition';
 import { PointerController } from './presentation/pointer-controller';
+import { waterVisualCapForStage } from './presentation/board-visuals';
 import type {
   BoardRenderOptions,
   ConstructionVisual
@@ -1471,6 +1472,7 @@ function render(): void {
     storageCells,
     resultHighlightCells,
     labelCells,
+    waterVisualCap: waterVisualCapForStage(currentStage),
     reducedMotion: reducedMotionQuery.matches
   };
   if (boardView !== null && boardViewState === 'ready') {
