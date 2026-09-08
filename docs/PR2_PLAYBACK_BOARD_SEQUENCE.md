@@ -22,7 +22,7 @@
 
 ## 検査結果と未確認
 
-- `npm run check`: 合格（45ファイル／228テスト、ドメインbuild/smoke、画面build/smoke）。
+- `npm run check`: 合格（45ファイル／229テスト、ドメインbuild/smoke、画面build/smoke）。
 - WebGLが有効なブラウザでの盤面操作、iPhone 17 Pro Safari、横画面、文字拡大、VoiceOver、初見プレイ、Sol Highの独立レビューは未実施。
 - 自動検査合格だけでM4完了とは扱わない。iPhone確認では、雨後と4回の水流の各水量が順に変わり、最終結果へ先行しないことを確認する。
 

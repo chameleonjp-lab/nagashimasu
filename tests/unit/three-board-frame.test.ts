@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { StageController } from '../../src/application/stage-controller';
+import { buildPlaybackBoardSequence } from '../../src/application/playback-board-sequence';
 import { getBuiltInStage } from '../../src/domain/stages';
 import { buildThreeBoardFrame } from '../../src/presentation/three-board-frame';
 
@@ -54,6 +55,37 @@ describe('three board frame contract', () => {
     expect(frame.activeFlow?.transfers.map(({ from, to, direction, kind, amount }) =>
       ({ from, to, direction, kind, amount })
     )).toEqual(flowEvent.flowResult.transfers);
+  });
+
+  it('uses the active playback board instead of previewing the final water early', () => {
+    const stage = getBuiltInStage('stage-02-open-to-sea');
+    if (stage === undefined) throw new Error('stage fixture missing');
+    const controller = new StageController(stage);
+    controller.setAnchor(28);
+    const first = controller.confirm();
+    expect(first?.accepted).toBe(true);
+    const before = controller.view;
+    const preview = controller.previewSkip();
+    const execution = controller.skip();
+    if (preview === null || !preview.valid) throw new Error('preview fixture missing');
+    const sequence = buildPlaybackBoardSequence(
+      before.snapshot.board,
+      preview.boardAfterRain,
+      execution.trace,
+      execution.snapshot.board
+    );
+    const firstFlow = sequence.flowEvents[0];
+    const firstFlowBoard = sequence.flowBoards[0];
+    if (firstFlow === undefined || firstFlowBoard === undefined || firstFlow.flowResult === null) {
+      throw new Error('flow fixture missing');
+    }
+    const frame = buildThreeBoardFrame(firstFlowBoard, {
+      preview,
+      flowResult: firstFlow.flowResult,
+      phase: 'flow'
+    });
+    expect(frame.water).toEqual(firstFlowBoard.water);
+    expect(frame.water).not.toEqual(preview.boardAfterTurn.water);
   });
 
   it('keeps supplied risk and result information as display input', () => {

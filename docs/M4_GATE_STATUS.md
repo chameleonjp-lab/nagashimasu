@@ -192,4 +192,4 @@ M4は「コードがある」だけで完了とはせず、自動検査、初見
 - PR1マージ後のmain `d8b7c6ab6b29b952a77942fdf61eac6dc7f3d158` を基点に、`StageTraceEvent` の移動量・排水量から雨後と4回の水流後の表示用盤面列を作るApplication関数を追加した。
 - `main.ts` は再生イベントごとの盤面を選び、`three-board-frame.ts` は水流中にプレビューの最終水量を混ぜない。目標進捗・雨予報・失敗強調も再生中の時点に合わせる。
 - ステージ2のB4→C4→D4→E4→F4の水量、セル排水、盤外危険流出、台帳、Undo、再生成・保存再開後のハッシュを単体検査した。
-- `npm run check` は45ファイル／228テスト、ドメインbuild・smoke、画面build・smokeを含めて合格。WebGL有効経路、iPhone Safari、横画面、文字拡大、VoiceOver、初見3名、独立レビューは未確認で、M4完了とは扱わない。
+- `npm run check` は45ファイル／229テスト、ドメインbuild・smoke、画面build・smokeを含めて合格。WebGL有効経路、iPhone Safari、横画面、文字拡大、VoiceOver、初見3名、独立レビューは未確認で、M4完了とは扱わない。
