@@ -22,6 +22,11 @@ import {
 import type { StageSaveV1 } from './application/stage-save';
 import { StageController } from './application/stage-controller';
 import type { StageControllerView } from './application/stage-controller';
+import {
+  boardForPlaybackEvent,
+  buildPlaybackBoardSequence,
+  playbackMetricsForEvent
+} from './application/playback-board-sequence';
 import { isStageUnlocked, stageAccessLabel } from './application/stage-access';
 import { TurnTimer, formatRemainingSeconds, timerDurationMs } from './application/turn-timer';
 import { shouldStartTurnTimerAfterVisibility } from './application/visibility-resume';
@@ -34,6 +39,8 @@ import type {
 import { getStageObjectiveProgress } from './domain/stage-session';
 import type {
   StageExecution,
+  StageMetrics,
+  StageRainForecast,
   StageTurnPreview
 } from './domain/stage-session';
 import type { BoardSnapshot } from './domain/types';
@@ -277,8 +284,11 @@ let activeConstructionVisual: ConstructionVisual | null = null;
 interface TurnPlaybackVisual {
   readonly beforeBoard: BoardSnapshot;
   readonly afterRainBoard: BoardSnapshot | null;
+  readonly beforeMetrics: StageMetrics;
+  readonly beforeForecasts: readonly StageRainForecast[];
 }
 let activeTurnPlaybackVisual: TurnPlaybackVisual | null = null;
+let activeTurnPlaybackSequence: ReturnType<typeof buildPlaybackBoardSequence> | null = null;
 let playback: TracePlayback | null = null;
 let selectedStageId = currentStage.id;
 let selectedTimerMode: StageTimerMode = progress.timerMode;
@@ -980,6 +990,7 @@ function resumeSavedGame(): void {
   beginNewSession();
   activeConstructionVisual = null;
   activeTurnPlaybackVisual = null;
+  activeTurnPlaybackSequence = null;
   stopTurnTimer();
   timerPausedForBoardRecovery = false;
   playbackPausedForBoardRecovery = false;
@@ -1013,6 +1024,7 @@ function startSelectedStage(): void {
   beginNewSession();
   activeConstructionVisual = null;
   activeTurnPlaybackVisual = null;
+  activeTurnPlaybackSequence = null;
   stopTurnTimer();
   timerPausedForBoardRecovery = false;
   playbackPausedForBoardRecovery = false;
@@ -1046,6 +1058,7 @@ function showStagePicker(force = false): void {
     invalidatePlayback();
     activeConstructionVisual = null;
     activeTurnPlaybackVisual = null;
+    activeTurnPlaybackSequence = null;
     playbackPausedForBoardRecovery = false;
   }
   stopTurnTimer();
@@ -1086,7 +1099,9 @@ function turnPlaybackVisualForView(
 ): TurnPlaybackVisual {
   return Object.freeze({
     beforeBoard: view.snapshot.board,
-    afterRainBoard: preview?.boardAfterRain ?? null
+    afterRainBoard: preview?.boardAfterRain ?? null,
+    beforeMetrics: view.snapshot.metrics,
+    beforeForecasts: view.forecasts
   });
 }
 
@@ -1210,17 +1225,9 @@ function boardForPlayback(
   view: StageControllerView,
   playbackFrame: TracePlaybackFrame | null
 ): BoardSnapshot {
-  const visual = activeTurnPlaybackVisual;
-  if (visual === null || playbackFrame === null) return view.snapshot.board;
-  switch (playbackFrame.phase) {
-    case 'construction': return visual.beforeBoard;
-    case 'rain': return visual.afterRainBoard ?? visual.beforeBoard;
-    case 'flow':
-    case 'evaluation':
-    case 'undo':
-      return view.snapshot.board;
-  }
-  return view.snapshot.board;
+  const sequence = activeTurnPlaybackSequence;
+  if (sequence === null || playbackFrame === null) return view.snapshot.board;
+  return boardForPlaybackEvent(sequence, playbackFrame.event);
 }
 
 function startPlayback(
@@ -1241,6 +1248,14 @@ function startPlayback(
   playback?.cancel();
   activeConstructionVisual = constructionVisual;
   activeTurnPlaybackVisual = turnPlaybackVisual;
+  activeTurnPlaybackSequence = turnPlaybackVisual === null
+    ? null
+    : buildPlaybackBoardSequence(
+      turnPlaybackVisual.beforeBoard,
+      turnPlaybackVisual.afterRainBoard,
+      execution.trace,
+      execution.snapshot.board
+    );
   playbackPausedForBoardRecovery = false;
   const outcome = buildTurnOutcomeSummary({
     construction,
@@ -1287,6 +1302,7 @@ function startPlayback(
       playbackPausedForBoardRecovery = false;
       activeConstructionVisual = null;
       activeTurnPlaybackVisual = null;
+      activeTurnPlaybackSequence = null;
       lastTurnOutcome = outcome;
       if (!paused && !pageHidden && controller.view.snapshot.phase === 'awaiting-turn') {
         startTurnTimer();
@@ -1338,20 +1354,43 @@ function render(): void {
   const locked = playback !== null || paused || boardViewState !== 'ready' ||
     boardViewInputLocked || boardTransitioning;
   const board = boardForPlayback(view, playbackFrame);
+  const playbackSequence = activeTurnPlaybackSequence;
+  const playbackVisual = activeTurnPlaybackVisual;
+  const displayMetrics = playbackFrame === null ||
+    playbackFrame.phase === 'undo' ||
+    playbackSequence === null ||
+    playbackVisual === null
+    ? view.snapshot.metrics
+    : playbackMetricsForEvent(
+      playbackSequence,
+      playbackFrame.event,
+      playbackVisual.beforeMetrics
+    );
   const objectiveProgress = getStageObjectiveProgress(
     currentStage,
     board,
-    view.snapshot.metrics
+    displayMetrics
   );
+  const displayForecasts = playbackFrame?.phase === 'construction' ||
+    playbackFrame?.phase === 'rain'
+    ? playbackVisual?.beforeForecasts ?? view.forecasts
+    : view.forecasts;
+  const displaySnapshot = playbackFrame === null
+    ? view.snapshot
+    : Object.freeze({
+      ...view.snapshot,
+      board,
+      metrics: displayMetrics
+    });
   const projection = buildStageProjection(
     currentStage,
-    view.snapshot,
-    view.forecasts,
-    view.preview
+    displaySnapshot,
+    displayForecasts,
+    playbackFrame === null ? view.preview : null
   );
   const previewSummary = buildStagePreviewSummary(view.snapshot, view.preview);
   const storageCells = currentStage.storageMask.flatMap((value, index) => value === 1 ? [index] : []);
-  const resultHighlightCells = view.snapshot.phase === 'failed'
+  const resultHighlightCells = playback === null && view.snapshot.phase === 'failed'
     ? view.snapshot.board.terrain.flatMap((_, index) =>
       (view.snapshot.board.dangerEdgeMask[index] ?? 0) !== 0 ||
       (view.snapshot.metrics.firstFloodStepByCell[index] ?? null) !== null
@@ -1414,7 +1453,7 @@ function render(): void {
     'aria-label',
     `${objectiveProgressTitle(currentStage)} ${objectiveProgress.value} / ${objectiveProgress.target}`
   );
-  const forecastText = view.forecasts.length === 0
+  const forecastText = displayForecasts.length === 0
     ? '雨予報: なし'
     : `雨予報: ${projection.forecasts.map((forecast) => `あと${forecast.turnsUntil}手・${forecast.totalAmount}・${forecast.cells.map((cell) => cellLabel(cell.index)).join('／')}`).join('、')}`;
   forecastElement.textContent = forecastText;
@@ -1712,6 +1751,7 @@ retryButton.addEventListener('click', () => {
   cameraLabel.textContent = cameraText(cameraRotation);
   activeConstructionVisual = null;
   activeTurnPlaybackVisual = null;
+  activeTurnPlaybackSequence = null;
   lastTurnOutcome = null;
   lastMessage = 'まず緑の丸を1つ押して仮置きしてください。';
   setMobileControlsOpen(true);
