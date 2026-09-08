@@ -68,6 +68,8 @@ export function buildAppMarkup(input: AppMarkupInput): string {
         </label>
         <p class="setting-help" id="playback-speed-help"></p>
         <p class="saved-game-summary" id="saved-game-summary"></p>
+        <p class="progress-save-status" id="pending-clear-save-summary" role="status" aria-live="polite" hidden></p>
+        <button class="progress-save-retry" id="pending-clear-save-retry" type="button" hidden>クリア結果の保存を再試行</button>
         <button class="start-button" id="resume-saved-game" type="button" hidden>続きから再開</button>
         <button class="start-button" id="start-game" type="button">このステージを始める</button>
       </section>
@@ -216,6 +218,10 @@ export function buildAppMarkup(input: AppMarkupInput): string {
         <p id="turn-outcome-result"></p>
       </section>
       <p class="game-message" id="message" role="status" aria-live="polite"></p>
+      <section class="progress-save-status" id="progress-save-status" role="status" aria-live="polite" aria-atomic="true" hidden>
+        <p id="progress-save-status-text"></p>
+        <button class="progress-save-retry" id="progress-save-retry" type="button">クリア結果の保存を再試行</button>
+      </section>
       <section class="result-panel" id="result-panel" tabindex="-1" hidden aria-live="polite">
         <h2 id="result-title"></h2>
         <p id="result-summary"></p>

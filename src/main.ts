@@ -10,6 +10,7 @@ import {
   writeProgress
 } from './application/progress-storage';
 import type { ProgressPlaybackSpeed } from './application/progress-storage';
+import { finalizeClearedStage } from './application/clear-progress';
 import {
   clearStageSave,
   createStageSave,
@@ -190,6 +191,8 @@ const startGameButton = required<HTMLButtonElement>('#start-game');
 const timerModeSelect = required<HTMLSelectElement>('#timer-mode');
 const playbackSpeedSelect = required<HTMLSelectElement>('#playback-speed');
 const playbackSpeedHelp = required<HTMLElement>('#playback-speed-help');
+const pendingClearSaveSummary = required<HTMLElement>('#pending-clear-save-summary');
+const pendingClearSaveRetryButton = required<HTMLButtonElement>('#pending-clear-save-retry');
 const stageMenuButton = required<HTMLButtonElement>('#stage-menu');
 const stageOptionButtons = Array.from(
   appRoot.querySelectorAll<HTMLButtonElement>('.stage-option')
@@ -227,6 +230,9 @@ const turnOutcomeRainElement = required<HTMLElement>('#turn-outcome-rain');
 const turnOutcomeFlowElement = required<HTMLElement>('#turn-outcome-flow');
 const turnOutcomeResultElement = required<HTMLElement>('#turn-outcome-result');
 const messageElement = required<HTMLElement>('#message');
+const progressSaveStatus = required<HTMLElement>('#progress-save-status');
+const progressSaveStatusText = required<HTMLElement>('#progress-save-status-text');
+const progressSaveRetryButton = required<HTMLButtonElement>('#progress-save-retry');
 const candidateButtons = [
   required<HTMLButtonElement>('#candidate-a'),
   required<HTMLButtonElement>('#candidate-b')
@@ -284,6 +290,22 @@ let playerName = readPlayerName();
 let resultPlatformLoaded = false;
 let resultPlatformRequestId = 0;
 const PLAYBACK_SPEED_UNLOCK_STAGE_ID = 'stage-02-open-to-sea';
+
+interface PendingClearSave {
+  readonly stageId: string;
+  readonly result: {
+    readonly total: number;
+    readonly grade: 'S' | 'A' | 'B' | 'C' | null;
+  };
+  readonly stageSave: StageSaveV1 | null;
+}
+
+// A failed write stays attached to the exact clear that produced it. This
+// lets a later settings write or explicit retry safely persist it without
+// allowing a delayed playback callback from another session to reuse it.
+const pendingClearSaves = new Map<string, PendingClearSave>();
+let sessionId = 0;
+let playbackId = 0;
 
 interface RankingRow {
   readonly display_name?: unknown;
@@ -676,9 +698,85 @@ function updateMobileStagePrompt(view: StageControllerView): void {
   mobileControlsToggle.textContent = '工事を選ぶ';
 }
 
-function persistProgress(next: typeof progress): void {
+function clearOwnedStageSave(save: StageSaveV1 | null): void {
+  // A pending clear may outlive a retry or a stage switch. Only remove the
+  // exact save that existed when that clear was attempted; a newer session's
+  // stage-save must remain available for its own resume path.
+  if (save === null || savedStageSave !== save) return;
+  clearStageSave();
+  if (savedStageSave === save) {
+    savedStageSave = null;
+    updateSavedGamePrompt();
+  }
+}
+
+function settlePersistedClearSaves(): void {
+  for (const [stageId, pending] of pendingClearSaves) {
+    const saved = progress.stages.find((entry) => entry.stageId === stageId);
+    if (saved === undefined || !saved.cleared) continue;
+    clearOwnedStageSave(pending.stageSave);
+    pendingClearSaves.delete(stageId);
+  }
+}
+
+function persistProgress(next: typeof progress): boolean {
   progress = next;
-  writeProgress(progress);
+  let saved = false;
+  try {
+    saved = writeProgress(progress);
+  } catch {
+    saved = false;
+  }
+  if (saved) settlePersistedClearSaves();
+  updatePendingClearSaveUi();
+  return saved;
+}
+
+function rememberPendingClearSave(
+  stageId: string,
+  result: PendingClearSave['result'],
+  stageSave: StageSaveV1 | null
+): void {
+  const previous = pendingClearSaves.get(stageId);
+  pendingClearSaves.set(stageId, Object.freeze({
+    stageId,
+    result,
+    // Prefer the save belonging to the latest clear attempt. If that session
+    // had no save of its own, retain the older fallback so a successful retry
+    // can still clean it up safely by object identity.
+    stageSave: stageSave ?? previous?.stageSave ?? null
+  }));
+  updatePendingClearSaveUi();
+}
+
+function updatePendingClearSaveUi(): void {
+  const pending = [...pendingClearSaves.values()];
+  const hasPending = pending.length > 0;
+  const stageNames = pending
+    .map((entry) => getBuiltInStage(entry.stageId)?.name ?? entry.stageId)
+    .join('、');
+  const message = hasPending
+    ? `クリア結果（${stageNames}）を端末に保存できていません。現在の結果は保持しています。保存を再試行してください。`
+    : '';
+  pendingClearSaveSummary.hidden = !hasPending;
+  pendingClearSaveSummary.textContent = message;
+  pendingClearSaveRetryButton.hidden = !hasPending;
+  pendingClearSaveRetryButton.disabled = !hasPending;
+  progressSaveStatus.hidden = !hasPending;
+  progressSaveStatusText.textContent = message;
+  progressSaveRetryButton.hidden = !hasPending;
+  progressSaveRetryButton.disabled = !hasPending;
+}
+
+function retryPendingClearSaves(): void {
+  if (pendingClearSaves.size === 0) return;
+  let next = progress;
+  for (const pending of pendingClearSaves.values()) {
+    // Reapply the accepted result to the latest in-memory progress so a
+    // setting change or another session cannot discard an older clear.
+    next = recordClearedStage(next, pending.stageId, pending.result);
+  }
+  persistProgress(next);
 }
 
 function updateTutorialVisibility(): void {
@@ -856,6 +954,17 @@ function resumeGame(): void {
   render();
 }
 
+function invalidatePlayback(): void {
+  playbackId += 1;
+  playback?.cancel();
+  playback = null;
+}
+
+function beginNewSession(): void {
+  sessionId += 1;
+  invalidatePlayback();
+}
+
 function resumeSavedGame(): void {
   if (!requirePlayerName()) return;
   const save = savedStageSave;
@@ -868,8 +977,7 @@ function resumeSavedGame(): void {
     updateStagePicker();
     return;
   }
-  playback?.cancel();
-  playback = null;
+  beginNewSession();
   activeConstructionVisual = null;
   activeTurnPlaybackVisual = null;
   stopTurnTimer();
@@ -902,8 +1010,7 @@ function startSelectedStage(): void {
     updateStagePicker();
     return;
   }
-  playback?.cancel();
-  playback = null;
+  beginNewSession();
   activeConstructionVisual = null;
   activeTurnPlaybackVisual = null;
   stopTurnTimer();
@@ -914,9 +1021,11 @@ function startSelectedStage(): void {
   currentStage = selected;
   cameraRotation = 0;
   cameraLabel.textContent = cameraText(cameraRotation);
-  if (savedStageSave?.replay.header.stageId === selected.id) {
-    clearStageSave();
-    savedStageSave = null;
+  if (
+    savedStageSave?.replay.header.stageId === selected.id &&
+    !pendingClearSaves.has(selected.id)
+  ) {
+    clearOwnedStageSave(savedStageSave);
   }
   persistProgress(markTutorialSeen(setLastStageId(progress, selected.id)));
   lastTurnOutcome = null;
@@ -934,8 +1043,7 @@ function startSelectedStage(): void {
 function showStagePicker(force = false): void {
   if (playback !== null && !force) return;
   if (force && playback !== null) {
-    playback.cancel();
-    playback = null;
+    invalidatePlayback();
     activeConstructionVisual = null;
     activeTurnPlaybackVisual = null;
     playbackPausedForBoardRecovery = false;
@@ -980,6 +1088,38 @@ function turnPlaybackVisualForView(
     beforeBoard: view.snapshot.board,
     afterRainBoard: preview?.boardAfterRain ?? null
   });
+}
+
+function persistAcceptedClear(
+  execution: StageExecution,
+  stageSaveBeforeClear: StageSaveV1 | null
+): boolean {
+  const score = execution.snapshot.score;
+  const result = {
+    total: score.total,
+    grade: score.grade
+  } as const;
+  const outcome = finalizeClearedStage({
+    progress,
+    stageId: execution.snapshot.stageId,
+    result
+  }, {
+    saveProgress: persistProgress,
+    clearStageSave: () => clearOwnedStageSave(stageSaveBeforeClear)
+  });
+  // persistProgress normally assigns this already, but keeping the outcome
+  // explicit makes the adapter safe if a storage implementation throws before
+  // it can update application state.
+  progress = outcome.progress;
+  // The clear is meaningful in the current session even when browser storage
+  // is unavailable. Reflect the in-memory unlock immediately; the retry panel
+  // separately communicates whether it has become durable.
+  updateStagePicker();
+  if (!outcome.saved) {
+    rememberPendingClearSave(execution.snapshot.stageId, result, stageSaveBeforeClear);
+  }
+  updatePendingClearSaveUi();
+  return outcome.saved;
 }
 
 function updatePhaseTimeline(
@@ -1089,8 +1229,15 @@ function startPlayback(
   constructionVisual: ConstructionVisual | null = null,
   turnPlaybackVisual: TurnPlaybackVisual | null = null
 ): void {
+  const currentSnapshot = controller.view.snapshot;
+  if (
+    execution.snapshot.stageId !== currentSnapshot.stageId ||
+    execution.snapshot.revision !== currentSnapshot.revision ||
+    execution.snapshot.stageId !== currentStage.id
+  ) return;
   stopTurnTimer();
   setMobileControlsOpen(false);
+  playbackId += 1;
   playback?.cancel();
   activeConstructionVisual = constructionVisual;
   activeTurnPlaybackVisual = turnPlaybackVisual;
@@ -1100,16 +1247,42 @@ function startPlayback(
     trace: execution.trace,
     phase: execution.snapshot.phase
   });
-  if (controller.view.snapshot.phase === 'awaiting-turn') {
+  const stageSaveBeforePlayback =
+    savedStageSave?.replay.header.stageId === execution.snapshot.stageId
+      ? savedStageSave
+      : null;
+  if (execution.snapshot.phase === 'awaiting-turn') {
     persistSessionSave();
+  } else if (execution.snapshot.phase === 'cleared') {
+    // The accepted result is durable before any animation frame can run. A
+    // failed write leaves the old resumable save and a visible retry affordance
+    // in place for the current session.
+    persistAcceptedClear(execution, stageSaveBeforePlayback);
   } else {
-    clearStageSave();
-    savedStageSave = null;
-    updateSavedGamePrompt();
+    clearOwnedStageSave(stageSaveBeforePlayback);
   }
-  playback = new TracePlayback(execution.trace, {
-    onFrame: () => render(),
+  const activeSessionId = sessionId;
+  const activePlaybackId = playbackId;
+  let playbackInstance: TracePlayback;
+  let completed = false;
+  playbackInstance = new TracePlayback(execution.trace, {
+    onFrame: () => {
+      if (
+        completed ||
+        playbackId !== activePlaybackId ||
+        sessionId !== activeSessionId ||
+        playback !== playbackInstance
+      ) return;
+      render();
+    },
     onComplete: () => {
+      if (
+        completed ||
+        playbackId !== activePlaybackId ||
+        sessionId !== activeSessionId ||
+        playback !== playbackInstance
+      ) return;
+      completed = true;
       playback = null;
       playbackPausedForBoardRecovery = false;
       activeConstructionVisual = null;
@@ -1118,26 +1291,16 @@ function startPlayback(
       if (!paused && !pageHidden && controller.view.snapshot.phase === 'awaiting-turn') {
         startTurnTimer();
       }
-      if (controller.view.snapshot.phase === 'cleared') {
-        const score = controller.view.snapshot.score;
-        persistProgress(recordClearedStage(progress, currentStage.id, {
-          total: score.total,
-          grade: score.grade
-        }));
-        updateStagePicker();
-      }
       if (controller.view.snapshot.phase !== 'awaiting-turn') {
-        clearStageSave();
-        savedStageSave = null;
-        updateSavedGamePrompt();
         setMobileControlsOpen(true);
       }
       render();
     }
   }, tracePlaybackDurations(
-    playbackSpeedUnlocked() ? selectedPlaybackSpeed : 'standard'
+      playbackSpeedUnlocked() ? selectedPlaybackSpeed : 'standard'
   ));
-  playback.start();
+  playback = playbackInstance;
+  playbackInstance.start();
 }
 
 function resizeCanvas(): void {
@@ -1387,6 +1550,7 @@ function render(): void {
   pauseButton.textContent = paused ? '再開' : '一時停止';
   pausePanel.hidden = !paused;
   resumeButton.disabled = pageHidden;
+  updatePendingClearSaveUi();
 }
 
 const pointerController = new PointerController(canvas, {
@@ -1534,14 +1698,15 @@ undoButton.addEventListener('click', () => {
 
 retryButton.addEventListener('click', () => {
   if (playback !== null || paused || !requirePlayerName()) return;
+  beginNewSession();
   stopTurnTimer();
   timerPausedForBoardRecovery = false;
   playbackPausedForBoardRecovery = false;
   paused = false;
   pausePanel.hidden = true;
-  clearStageSave();
-  savedStageSave = null;
-  updateSavedGamePrompt();
+  if (!pendingClearSaves.has(currentStage.id)) {
+    clearOwnedStageSave(savedStageSave?.replay.header.stageId === currentStage.id ? savedStageSave : null);
+  }
   controller = new StageController(currentStage, selectedTimerMode);
   cameraRotation = 0;
   cameraLabel.textContent = cameraText(cameraRotation);
@@ -1581,6 +1746,14 @@ tutorialToggle.addEventListener('click', () => {
 
 startGameButton.addEventListener('click', startSelectedStage);
 resumeSavedGameButton.addEventListener('click', resumeSavedGame);
+pendingClearSaveRetryButton.addEventListener('click', () => {
+  retryPendingClearSaves();
+  render();
+});
+progressSaveRetryButton.addEventListener('click', () => {
+  retryPendingClearSaves();
+  render();
+});
 stageMenuButton.addEventListener('click', () => showStagePicker());
 boardViewRetryButton.addEventListener('click', () => {
   if (boardViewLoading !== null) return;

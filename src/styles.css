@@ -1331,6 +1331,31 @@ button:disabled {
   font-size: 0.86rem;
 }
 
+.progress-save-status {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(255, 149, 117, 0.62);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: rgba(72, 36, 29, 0.9);
+  color: #ffe0d3;
+  font-size: 0.82rem;
+}
+
+.progress-save-status[hidden] {
+  display: none;
+}
+
+.progress-save-status p {
+  margin: 0;
+}
+
+.progress-save-retry {
+  width: 100%;
+  border-color: rgba(255, 209, 102, 0.7);
+  background: rgba(101, 74, 23, 0.9);
+}
+
 .result-panel {
   display: grid;
   gap: 5px;
