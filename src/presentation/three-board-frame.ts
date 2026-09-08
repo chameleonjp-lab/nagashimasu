@@ -70,10 +70,18 @@ export function buildThreeBoardFrame(
 ): ThreeBoardFrame {
   const preview = options.preview ?? null;
   const constructionVisual = options.constructionVisual ?? null;
-  const terrain = constructionVisual?.terrainAfter ??
-    preview?.terrainAfterConstruction ?? snapshot.terrain;
-  const water = preview?.boardAfterTurn.water ?? snapshot.water;
   const activeFlow = options.flowResult ?? null;
+  // A playback frame is authoritative for the phase it represents.  A
+  // pending preview still shows its projected construction/turn result, but
+  // an active flow or construction event must not inherit the future preview
+  // or final-turn terrain from another state.
+  const terrain = options.phase === 'construction' && preview === null
+    ? snapshot.terrain
+    : constructionVisual?.terrainAfter ??
+      preview?.terrainAfterConstruction ?? snapshot.terrain;
+  const water = activeFlow !== null
+    ? snapshot.water
+    : preview?.boardAfterTurn.water ?? snapshot.water;
   const previewFlow = activeFlow === null && preview?.valid === true ? preview.nextFlow : null;
   const previewFinalFlow = activeFlow === null && preview?.valid === true
     ? preview.flowSteps[preview.flowSteps.length - 1] ?? previewFlow
