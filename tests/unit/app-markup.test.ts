@@ -39,4 +39,11 @@ describe('app markup', () => {
     expect(markup).toContain('id="tutorial-steps"');
     expect(markup).toContain('id="stage-picker-title"');
   });
+
+  it('explains cell drains and the shared terrain-plus-water surface', () => {
+    expect(markup).toContain('セル内の排水口');
+    expect(markup).toContain('1回の水流で最大8');
+    expect(markup).toContain('同じ水面');
+    expect(markup).toContain('盤外の安全な出口');
+  });
 });

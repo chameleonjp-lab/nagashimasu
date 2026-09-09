@@ -1,4 +1,5 @@
 import { clampPlaybackProgress } from './playback-visuals';
+import { DEFAULT_HEIGHT_UNIT, MAX_TERRAIN_HEIGHT } from '../domain/constants';
 import type { ValidatedStageDefinition } from '../domain/stage-definition';
 
 /** The minimum water amount represented by the presentation scale. */
@@ -9,6 +10,19 @@ export interface WaterVisualLevel {
   readonly ratio: number;
   readonly lift: number;
   readonly depth: number;
+}
+
+export interface WaterSurfaceVisualLevel {
+  /** The terrain height used by the display, before water is added. */
+  readonly terrain: number;
+  /** The domain amount, kept unmodified for labels and auditability. */
+  readonly amount: number;
+  /** The amount represented by the bounded visual scale. */
+  readonly visibleAmount: number;
+  /** The bounded logical surface: terrain × height unit + visible water. */
+  readonly logicalSurface: number;
+  /** The same surface in the compact Three.js world-height reference. */
+  readonly worldY: number;
 }
 
 function assertNonNegativeFinite(value: number, label: string): void {
@@ -39,6 +53,42 @@ export function waterVisualLevel(
     ratio,
     lift: ratio * 0.34,
     depth: 0.08 + ratio * 0.22
+  });
+}
+
+function assertTerrainHeight(value: number): void {
+  if (!Number.isSafeInteger(value) || value < 0 || value > MAX_TERRAIN_HEIGHT) {
+    throw new RangeError(`terrain must be an integer from 0 to ${MAX_TERRAIN_HEIGHT}`);
+  }
+}
+
+/**
+ * Maps the rule's water surface to the same vertical reference as terrain.
+ *
+ * The water solver compares `terrain * DEFAULT_HEIGHT_UNIT + water`. Keeping
+ * that relationship in the display prevents a low tile with a large amount
+ * of water from looking lower than a taller, drier tile when it is actually
+ * the higher surface. The bounded amount keeps extreme domain values readable
+ * without changing the numeric amount shown to the player.
+ */
+export function waterSurfaceVisualLevel(
+  terrain: number,
+  amount: number,
+  visualCap = MAX_VISUAL_WATER
+): WaterSurfaceVisualLevel {
+  assertTerrainHeight(terrain);
+  assertNonNegativeFinite(amount, 'amount');
+  if (!Number.isFinite(visualCap) || visualCap <= 0) {
+    throw new RangeError('visualCap must be a positive finite number');
+  }
+  const visibleAmount = Math.min(visualCap, amount);
+  const logicalSurface = terrain * DEFAULT_HEIGHT_UNIT + visibleAmount;
+  return Object.freeze({
+    terrain,
+    amount,
+    visibleAmount,
+    logicalSurface,
+    worldY: logicalSurface / DEFAULT_HEIGHT_UNIT
   });
 }
 

@@ -6,7 +6,11 @@ import {
   MAX_TERRAIN_HEIGHT
 } from '../domain/constants';
 import { coordinateOf } from '../domain/board';
-import { waterVisualLevel } from './board-visuals';
+import {
+  MAX_VISUAL_WATER,
+  waterSurfaceVisualLevel,
+  waterVisualLevel
+} from './board-visuals';
 import type { ScreenPoint } from './three-board-picking';
 
 export type BoardRotation = 0 | 1 | 2 | 3;
@@ -146,6 +150,15 @@ export function terrainTopY(terrain: number): number {
 
 export function waterDisplayHeight(amount: number): number {
   return waterVisualLevel(amount).depth;
+}
+
+/** Returns the common terrain-plus-water surface reference used for display. */
+export function waterSurfaceWorldY(
+  terrain: number,
+  amount: number,
+  visualCap = MAX_VISUAL_WATER
+): number {
+  return waterSurfaceVisualLevel(terrain, amount, visualCap).worldY;
 }
 
 function cellXZ(row: number, column: number, cellSize: number): { readonly x: number; readonly z: number } {
@@ -343,18 +356,29 @@ export function waterTransferWorldPoints(
     readonly from: number;
     readonly to: number | null;
     readonly direction: Direction;
+    readonly amount?: number;
   },
-  terrain: readonly number[]
+  terrain: readonly number[],
+  visualCap = MAX_VISUAL_WATER
 ): { readonly from: Vec3Like; readonly to: Vec3Like; } {
   const fromTerrain = terrain[transfer.from] ?? 0;
   const fromGeometry = cellWorldGeometry(transfer.from, fromTerrain, fit.cellSize);
-  const from = addScaled(fromGeometry.center, freezeVec3(0, 1, 0), 0.22);
+  const transferAmount = transfer.amount ?? 0;
+  const from = freezeVec3(
+    fromGeometry.center.x,
+    waterSurfaceWorldY(fromTerrain, transferAmount, visualCap),
+    fromGeometry.center.z
+  );
   if (transfer.to !== null) {
     const toTerrain = terrain[transfer.to] ?? 0;
     const toGeometry = cellWorldGeometry(transfer.to, toTerrain, fit.cellSize);
     return Object.freeze({
       from,
-      to: addScaled(toGeometry.center, freezeVec3(0, 1, 0), 0.22)
+      to: freezeVec3(
+        toGeometry.center.x,
+        waterSurfaceWorldY(toTerrain, transferAmount, visualCap),
+        toGeometry.center.z
+      )
     });
   }
 

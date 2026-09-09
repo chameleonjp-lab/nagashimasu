@@ -18,6 +18,7 @@ import {
   normalizeBoardRotation,
   projectCellCenterToScreen,
   terrainBlockHeight,
+  waterSurfaceWorldY,
   waterTransferWorldPoints
 } from './three-board-math';
 import type { BoardCameraFit, BoardRotation, Vec3Like } from './three-board-math';
@@ -74,6 +75,12 @@ interface EdgeMarkerPair {
   readonly danger: THREE.Mesh;
   readonly index: number;
   readonly direction: Direction;
+}
+
+interface DrainMarkerVisual {
+  readonly group: THREE.Group;
+  readonly ring: THREE.Mesh;
+  readonly arrow: THREE.Mesh;
 }
 
 interface FlowVisualPair {
@@ -261,6 +268,7 @@ export class ThreeBoardView {
   private readonly resultMarkers: readonly THREE.Mesh[];
   private readonly storageMarkers: readonly THREE.Mesh[];
   private readonly protectedMarkers: readonly THREE.Mesh[];
+  private readonly drainMarkers: readonly DrainMarkerVisual[];
   private readonly constructionBeforeMarkers: readonly THREE.LineSegments[];
   private readonly constructionAfterMarkers: readonly THREE.Mesh[];
   private readonly forecastMarkers: readonly THREE.Mesh[];
@@ -296,6 +304,9 @@ export class ThreeBoardView {
   private readonly rainDropMaterial: THREE.MeshBasicMaterial;
   private readonly flowMaterials: FlowMaterialMap;
   private readonly flowWarningMaterial: THREE.MeshBasicMaterial;
+  private readonly drainMaterial: THREE.MeshBasicMaterial;
+  private readonly drainActiveMaterial: THREE.MeshBasicMaterial;
+  private readonly drainArrowMaterial: THREE.MeshBasicMaterial;
   private readonly terrainGeometry: THREE.BoxGeometry;
   private readonly terrainEdgeGeometry: THREE.EdgesGeometry;
   private readonly waterGeometry: THREE.BoxGeometry;
@@ -526,6 +537,15 @@ export class ThreeBoardView {
       this.flowWarningMaterial = this.resources.register(new THREE.MeshBasicMaterial({
         color: '#ff6b6b', transparent: true, opacity: 0.98, depthTest: false
       }));
+      this.drainMaterial = this.resources.register(new THREE.MeshBasicMaterial({
+        color: '#ffd166', transparent: true, opacity: 0.98, depthTest: false
+      }));
+      this.drainActiveMaterial = this.resources.register(new THREE.MeshBasicMaterial({
+        color: '#8ee3cf', transparent: true, opacity: 1, depthTest: false
+      }));
+      this.drainArrowMaterial = this.resources.register(new THREE.MeshBasicMaterial({
+        color: '#06263a', transparent: true, opacity: 1, depthTest: false
+      }));
 
       const terrainMeshes: THREE.Mesh[] = [];
       const terrainOutlines: THREE.LineSegments[] = [];
@@ -538,6 +558,7 @@ export class ThreeBoardView {
       const resultMarkers: THREE.Mesh[] = [];
       const storageMarkers: THREE.Mesh[] = [];
       const protectedMarkers: THREE.Mesh[] = [];
+      const drainMarkers: DrainMarkerVisual[] = [];
       const constructionBeforeMarkers: THREE.LineSegments[] = [];
       const constructionAfterMarkers: THREE.Mesh[] = [];
       const forecastMarkers: THREE.Mesh[] = [];
@@ -601,6 +622,22 @@ export class ThreeBoardView {
         protectedMarker.visible = false;
         protectedMarkers.push(protectedMarker);
         this.markerGroup.add(protectedMarker);
+
+        const drainGroup = new THREE.Group();
+        drainGroup.renderOrder = 44;
+        drainGroup.visible = false;
+        const drainRing = new THREE.Mesh(this.ringGeometry, this.drainMaterial);
+        drainRing.rotation.x = Math.PI / 2;
+        drainRing.scale.setScalar(0.72);
+        drainRing.renderOrder = 44;
+        const drainArrow = new THREE.Mesh(this.arrowGeometry, this.drainArrowMaterial);
+        drainArrow.rotation.z = Math.PI;
+        drainArrow.position.y = 0.02;
+        drainArrow.scale.setScalar(0.72);
+        drainArrow.renderOrder = 45;
+        drainGroup.add(drainRing, drainArrow);
+        drainMarkers.push(Object.freeze({ group: drainGroup, ring: drainRing, arrow: drainArrow }));
+        this.markerGroup.add(drainGroup);
 
         const constructionBefore = new THREE.LineSegments(this.topOutlineGeometry, this.selectedMaterial);
         constructionBefore.renderOrder = 43;
@@ -719,6 +756,7 @@ export class ThreeBoardView {
       this.resultMarkers = Object.freeze(resultMarkers);
       this.storageMarkers = Object.freeze(storageMarkers);
       this.protectedMarkers = Object.freeze(protectedMarkers);
+      this.drainMarkers = Object.freeze(drainMarkers);
       this.constructionBeforeMarkers = Object.freeze(constructionBeforeMarkers);
       this.constructionAfterMarkers = Object.freeze(constructionAfterMarkers);
       this.forecastMarkers = Object.freeze(forecast);
@@ -1010,6 +1048,11 @@ export class ThreeBoardView {
     const resultCells = new Set(frame.resultHighlightCells);
     const selectedCell = frame.selectedCell;
     const pulse = playbackPulseForMotion(frame.playbackProgress, frame.reducedMotion);
+    const displayFlow = frame.activeFlow ?? frame.previewFinalFlow;
+    const drainAmounts = new Map<number, number>();
+    for (const drain of displayFlow?.drains ?? []) {
+      drainAmounts.set(drain.index, drain.amount);
+    }
 
     for (let index = 0; index < CELL_COUNT; index += 1) {
       const terrain = frame.terrain[index] ?? 0;
@@ -1040,20 +1083,54 @@ export class ThreeBoardView {
       if (waterAmount > 0) {
         const visual = waterVisualLevel(waterAmount, frame.waterVisualCap);
         const waterHeight = Math.max(0.045, visual.depth);
+        const surfaceY = waterSurfaceWorldY(terrain, waterAmount, frame.waterVisualCap);
         water.visible = true;
         water.scale.set(1, waterHeight, 1);
         water.position.set(
           geometry.center.x,
-          topY + 0.035 + visual.lift + waterHeight / 2,
+          surfaceY - waterHeight / 2,
           geometry.center.z
         );
         this.labels.use(String(waterAmount), {
           x: geometry.center.x,
-          y: topY + 0.5 + visual.lift,
+          y: surfaceY + 0.22,
           z: geometry.center.z
         }, 0.34, { color: '#06263a', background: 'rgba(185, 231, 255, 0.9)' });
       } else {
         water.visible = false;
+      }
+
+      const drain = this.drainMarkers[index]!;
+      const drainCapacity = frame.drainCapacity[index] ?? 0;
+      const drainedAmount = drainAmounts.get(index) ?? 0;
+      drain.group.visible = drainCapacity > 0;
+      drain.ring.material = drainedAmount > 0
+        ? this.drainActiveMaterial
+        : this.drainMaterial;
+      const drainAmountForHeight = Math.max(waterAmount, drainedAmount);
+      const drainY = Math.max(
+        topY + 0.2,
+        waterSurfaceWorldY(terrain, drainAmountForHeight, frame.waterVisualCap) + 0.04
+      );
+      setMeshPosition(drain.group, {
+        x: geometry.center.x,
+        y: drainY,
+        z: geometry.center.z
+      });
+      drain.group.scale.setScalar(
+        (drainedAmount > 0 ? 0.84 : 0.72) + pulse * (drainedAmount > 0 ? 0.12 : 0.04)
+      );
+      if (drain.group.visible) {
+        this.labels.use('排水口', {
+          x: geometry.center.x,
+          y: drainY + 0.34,
+          z: geometry.center.z
+        }, 0.42, { color: '#06263a', background: 'rgba(255, 209, 102, 0.96)' });
+        this.labels.use(`最大${drainCapacity}/回`, {
+          x: geometry.center.x,
+          y: drainY + 0.62,
+          z: geometry.center.z
+        }, 0.34, { color: '#fff6d6', background: 'rgba(101, 74, 23, 0.94)' });
       }
 
       const legal = this.legalMarkers[index]!;
@@ -1298,7 +1375,8 @@ export class ThreeBoardView {
       const points = waterTransferWorldPoints(
         this.cameraFit ?? computeBoardCameraFit(this.widthCss, this.heightCss, { rotation: this.rotationValue }),
         transfer,
-        frame.terrain
+        frame.terrain,
+        frame.waterVisualCap
       );
       const color = flowColor(transfer);
       const material = this.flowMaterials[transfer.kind] ?? this.flowMaterials.cell;
@@ -1347,6 +1425,17 @@ export class ThreeBoardView {
           particle.visible = true;
         }
       }
+    }
+
+    for (const drainEvent of flow.drains) {
+      const terrain = frame.terrain[drainEvent.index] ?? 0;
+      const geometry = cellWorldGeometry(drainEvent.index, terrain);
+      const surfaceY = waterSurfaceWorldY(terrain, drainEvent.amount, frame.waterVisualCap);
+      this.labels.use(`排水 −${drainEvent.amount}`, {
+        x: geometry.center.x,
+        y: Math.max(geometry.topY + 0.72, surfaceY + 0.78),
+        z: geometry.center.z
+      }, 0.5, { color: '#06263a', background: 'rgba(142, 227, 207, 0.98)' });
     }
   }
 
