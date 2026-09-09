@@ -12,6 +12,8 @@ import { MAX_VISUAL_WATER } from './board-visuals';
 export interface ThreeBoardFrame {
   readonly terrain: readonly number[];
   readonly water: readonly number[];
+  /** Per-cell capacity for an in-board drain; zero means no drain. */
+  readonly drainCapacity: readonly number[];
   readonly cellFlags: readonly number[];
   readonly safeEdgeMask: readonly number[];
   readonly dangerEdgeMask: readonly number[];
@@ -100,6 +102,7 @@ export function buildThreeBoardFrame(
   return Object.freeze({
     terrain: Object.freeze([...terrain]),
     water: Object.freeze([...water]),
+    drainCapacity: Object.freeze([...snapshot.drainCapacity]),
     cellFlags: Object.freeze([...snapshot.cellFlags]),
     safeEdgeMask: Object.freeze([...snapshot.safeEdgeMask]),
     dangerEdgeMask: Object.freeze([...snapshot.dangerEdgeMask]),

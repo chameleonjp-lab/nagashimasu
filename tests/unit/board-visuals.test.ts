@@ -4,6 +4,7 @@ import { getBuiltInStage } from '../../src/domain/stages';
 import {
   MAX_VISUAL_WATER,
   waterVisualCapForStage,
+  waterSurfaceVisualLevel,
   waterVisualLevel
 } from '../../src/presentation/board-visuals';
 
@@ -29,6 +30,18 @@ describe('board water visuals', () => {
 
     expect(waterVisualLevel(32, cap).ratio).toBeGreaterThan(waterVisualLevel(24, cap).ratio);
     expect(waterVisualLevel(cap, cap).ratio).toBe(1);
+  });
+
+  it('uses the same terrain-plus-water reference as the flow rule', () => {
+    const sameSurfaceFromWater = waterSurfaceVisualLevel(0, 8, 40);
+    const sameSurfaceFromTerrain = waterSurfaceVisualLevel(1, 0, 40);
+    const lowerTerrainWithMoreWater = waterSurfaceVisualLevel(0, 16, 40);
+
+    expect(sameSurfaceFromWater.logicalSurface).toBe(8);
+    expect(sameSurfaceFromTerrain.logicalSurface).toBe(8);
+    expect(sameSurfaceFromWater.worldY).toBe(sameSurfaceFromTerrain.worldY);
+    expect(lowerTerrainWithMoreWater.worldY).toBeGreaterThan(sameSurfaceFromTerrain.worldY);
+    expect(waterSurfaceVisualLevel(0, 16, 24).visibleAmount).toBe(16);
   });
 
   it('rejects an invalid visual cap', () => {

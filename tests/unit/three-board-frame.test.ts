@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { StageController } from '../../src/application/stage-controller';
 import { buildPlaybackBoardSequence } from '../../src/application/playback-board-sequence';
 import { getBuiltInStage } from '../../src/domain/stages';
+import type { FlowStepResult } from '../../src/domain/types';
 import { buildThreeBoardFrame } from '../../src/presentation/three-board-frame';
 
 describe('three board frame contract', () => {
@@ -109,6 +110,30 @@ describe('three board frame contract', () => {
     expect(frame.riskCells).toEqual(risks);
     expect(frame.resultPhase).toBe('failed');
     expect(frame.resultText).toBe('表示された結果');
+  });
+
+  it('carries cell-drain capacity and recorded drain amounts to the view', () => {
+    const stage = getBuiltInStage('stage-03-rain-order');
+    if (stage === undefined) throw new Error('stage fixture missing');
+    const snapshot = new StageController(stage).view.snapshot.board;
+    const drainIndex = snapshot.drainCapacity.findIndex((capacity) => capacity > 0);
+    if (drainIndex < 0) throw new Error('drain fixture missing');
+    const flow: FlowStepResult = Object.freeze({
+      flowStep: 1,
+      movedWater: 8,
+      safeDrained: 8,
+      dangerLeaked: 0,
+      protectedOverflow: 0,
+      transfers: Object.freeze([]),
+      drains: Object.freeze([{ index: drainIndex, amount: 8 }]),
+      protectedOverflows: Object.freeze([])
+    });
+
+    const frame = buildThreeBoardFrame(snapshot, { flowResult: flow });
+
+    expect(frame.drainCapacity[drainIndex]).toBe(8);
+    expect(Object.isFrozen(frame.drainCapacity)).toBe(true);
+    expect(frame.activeFlow?.drains).toEqual([{ index: drainIndex, amount: 8 }]);
   });
 
   it('is deterministic for the same snapshot and options', () => {

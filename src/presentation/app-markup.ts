@@ -121,7 +121,7 @@ export function buildAppMarkup(input: AppMarkupInput): string {
         <p id="board-view-state-text"></p>
         <section class="board-view-state-help" id="board-view-state-help" aria-labelledby="board-view-state-help-title" hidden>
           <h2 id="board-view-state-help-title">盤面が見えないとき</h2>
-          <figure class="board-view-state-diagram" role="img" aria-label="盤面の例。雨が落ち、水面の低いセルへ流れ、安全な出口へ向かいます。">
+          <figure class="board-view-state-diagram" role="img" aria-label="盤面の例。雨が落ち、水面の低いセルへ流れ、セル内の排水口または盤外の安全な出口へ向かいます。">
             <div class="board-view-state-diagram-grid" aria-hidden="true">
               <span class="board-view-state-diagram-token diagram-rain">雨</span>
               <span class="board-view-state-diagram-token diagram-water">水</span>
@@ -133,7 +133,8 @@ export function buildAppMarkup(input: AppMarkupInput): string {
           <ol>
             <li>候補を選び、緑の丸を押して仮置きします。</li>
             <li>施工を確定すると、雨のあと水流が4回進みます。</li>
-            <li>同じ高さでは水は動かず、盤外の出口は地形を上げても閉じません。</li>
+            <li>同じ地形でも水量が違えば水面が変わり、同じ水面では水は動きません。</li>
+            <li>黄色い丸と下向き記号はセル内の排水口（1回の水流で最大8）。緑の矢印は盤外の安全な出口です。</li>
           </ol>
           <p>この端末では3D盤面を操作できません。再生成を試すか、別の端末でプレイしてください。</p>
         </section>
@@ -197,10 +198,11 @@ export function buildAppMarkup(input: AppMarkupInput): string {
             <li><span class="legend-symbol legend-forecast" aria-hidden="true"></span><span>点線の輪：予報の雨（数字は雨量）</span></li>
             <li><span class="legend-symbol legend-flow" aria-hidden="true"></span><span>青い水面：そのセルにたまった水（数字は水量）</span></li>
             <li><span class="legend-symbol legend-flow-particle" aria-hidden="true"></span><span>水色の粒：再生中に移動する水</span></li>
-            <li><span class="legend-symbol legend-safe" aria-hidden="true"></span><span>緑の辺：安全な排水方向</span></li>
+            <li><span class="legend-symbol legend-drain" aria-hidden="true"></span><span>黄色い記号「排水口」：セル内の排水（1回の水流で最大8）</span></li>
+            <li><span class="legend-symbol legend-safe" aria-hidden="true"></span><span>緑の辺：盤外の安全な出口への方向</span></li>
             <li><span class="legend-symbol legend-danger" aria-hidden="true"></span><span>赤い辺：危険側へ流れる方向</span></li>
             <li><span class="legend-symbol legend-risk" aria-hidden="true"></span><span>黄〜赤の塗り：雨と水流の危険度</span></li>
-            <li><span class="legend-symbol legend-rule" aria-hidden="true">i</span><span>同じ高さのセル同士では水は動きません</span></li>
+            <li><span class="legend-symbol legend-rule" aria-hidden="true">i</span><span>同じ水面のセル同士では水は動きません（地形＋水量で比較）</span></li>
             <li><span class="legend-symbol legend-rule" aria-hidden="true">↗</span><span>盤外の出口は、地形を上げても閉じません</span></li>
           </ul>
         </section>

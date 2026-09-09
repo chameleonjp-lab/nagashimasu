@@ -11,6 +11,7 @@ import {
   projectCellCenterToScreen,
   visibleDirectionForRotation,
   waterDisplayHeight,
+  waterSurfaceWorldY,
   waterTransferWorldPoints
 } from '../../src/presentation/three-board-math';
 
@@ -85,12 +86,18 @@ describe('three board math', () => {
     expect(waterDisplayHeight(8)).toBeLessThan(waterDisplayHeight(24));
   });
 
+  it('keeps terrain and water on one logical surface reference', () => {
+    expect(waterSurfaceWorldY(0, 8, 40)).toBe(waterSurfaceWorldY(1, 0, 40));
+    expect(waterSurfaceWorldY(0, 16, 40)).toBeGreaterThan(waterSurfaceWorldY(1, 0, 40));
+  });
+
   it('extends null transfers outside the board in the recorded direction', () => {
     const fit = computeBoardCameraFit(430, 480);
     const points = waterTransferWorldPoints(fit, {
       from: 0,
       to: null,
-      direction: Direction.North
+      direction: Direction.North,
+      amount: 8
     }, Array<number>(CELL_COUNT).fill(0));
     expect(points.to.z).toBeLessThan(points.from.z);
     expect(Math.abs(points.to.z - points.from.z)).toBeGreaterThan(1.5);

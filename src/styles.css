@@ -1065,6 +1065,27 @@ button:disabled {
   bottom: 3px;
 }
 
+.legend-drain {
+  position: relative;
+  border: 2px solid #ffd166;
+  border-radius: 50%;
+  background: rgba(255, 209, 102, 0.2);
+}
+
+.legend-drain::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  color: #ffd166;
+  content: "↓";
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 16px;
+  text-align: center;
+}
+
 .legend-safe {
   height: 0;
   border-top: 3px solid #8ee3cf;
