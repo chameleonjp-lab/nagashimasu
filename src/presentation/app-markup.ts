@@ -199,7 +199,7 @@ export function buildAppMarkup(input: AppMarkupInput): string {
             <li><span class="legend-symbol legend-flow" aria-hidden="true"></span><span>青い水面：そのセルにたまった水（数字は水量）</span></li>
             <li><span class="legend-symbol legend-flow-particle" aria-hidden="true"></span><span>水色の粒：再生中に移動する水</span></li>
             <li><span class="legend-symbol legend-drain" aria-hidden="true"></span><span>黄色い記号「排水口」：セル内の排水（1回の水流で最大8）</span></li>
-            <li><span class="legend-symbol legend-safe" aria-hidden="true"></span><span>緑の辺：安全な排水方向</span></li>
+            <li><span class="legend-symbol legend-safe" aria-hidden="true"></span><span>緑の辺：盤外の安全な出口への方向</span></li>
             <li><span class="legend-symbol legend-danger" aria-hidden="true"></span><span>赤い辺：危険側へ流れる方向</span></li>
             <li><span class="legend-symbol legend-risk" aria-hidden="true"></span><span>黄〜赤の塗り：雨と水流の危険度</span></li>
             <li><span class="legend-symbol legend-rule" aria-hidden="true">i</span><span>同じ水面のセル同士では水は動きません（地形＋水量で比較）</span></li>
