@@ -35,6 +35,8 @@ describe('app markup', () => {
     expect(markup).toContain('data-cell-index="7"');
     expect(markup).toContain('aria-controls="game-controls"');
     expect(markup).toContain('aria-labelledby="controls-sheet-title"');
+    expect(markup).toContain('aria-describedby="controls-sheet-description"');
+    expect(markup).toContain('id="controls-sheet-description"');
   });
 
   it('keeps external links explicit and safe', () => {

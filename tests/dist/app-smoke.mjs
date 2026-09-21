@@ -96,6 +96,8 @@ for (const marker of [
   'cell-inspection-picker',
   'cell-inspection-picker-grid',
   '施工位置・手数・操作ログは変わりません',
+  'controls-sheet-description',
+  'aria-describedby',
   '選択セルの確認',
   'この手の予測:',
   '危険理由:',

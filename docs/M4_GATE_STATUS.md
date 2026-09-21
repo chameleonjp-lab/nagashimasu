@@ -245,3 +245,11 @@ M4は「コードがある」だけで完了とはせず、自動検査、初見
 - `npm run check` は47ファイル／248テスト、ドメインbuild・smoke、画面build・smokeを含めて合格。iPhone 17 Pro Safari、VoiceOver、初見プレイ3名、Sol・Highの独立レビューは未確認で、M4完了とは扱わない。
 
 詳細な確認手順は `docs/PR8_ACCESSIBLE_MOBILE_ACCEPTANCE.md` に記録する。
+
+## 2026-09-21 PR9 モバイル操作シートの状態読み上げ
+
+- PR8マージ後のmain `949eedfd8fd377360c91644d92ffa694b30e674c` を基点に、操作シートへ`aria-describedby`とpolite statusを追加し、候補選択前、仮置き中、再生中、終端の状態を一文で読み上げられるようにした。
+- 既存の候補、施工、見送り、Undo、セル確認、保存、勝敗、水流は変更していない。
+- `npm run check` は47ファイル／248テスト、ドメインbuild・smoke、画面build・smokeを含めて合格。iPhone 17 Pro Safari、VoiceOver、初見プレイ3名、Sol・Highの独立レビューは未確認で、M4完了とは扱わない。
+
+詳細な確認手順は `docs/PR9_MOBILE_ARIA_STATE.md` に記録する。
