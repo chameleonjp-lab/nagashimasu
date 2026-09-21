@@ -36,6 +36,18 @@ describe('stage projection', () => {
     expect(critical.some((risk) => risk.reasons.some((reason) => reason.includes('浸水')))).toBe(true);
   });
 
+  it('labels safe drainage as an objective trade-off on the pond stage', () => {
+    const controller = new StageController(stageOne);
+    const view = controller.view;
+    const projection = buildStageProjection(stageOne, view.snapshot, view.forecasts, view.preview);
+    const safeDrainRisk = projection.risks.find((risk) =>
+      risk.reasons.some((reason) => reason.includes('安全排水へ流れます'))
+    );
+    if (safeDrainRisk !== undefined) {
+      expect(safeDrainRisk.reasons.join('／')).toContain('池にためる目標との両立を確認');
+    }
+  });
+
   it('uses the four user-facing risk labels', () => {
     const levels: readonly StageRiskLevel[] = ['safe', 'caution', 'danger', 'critical'];
     expect(levels.map((level) => riskLabel(level))).toEqual([

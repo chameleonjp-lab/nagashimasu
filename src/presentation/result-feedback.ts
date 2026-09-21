@@ -4,6 +4,8 @@ import type {
   StagePhase,
   StageScore
 } from '../domain/stage-session';
+import type { StageObjective } from '../domain/stage-definition';
+import { objectiveTypeLabel } from './stage-copy';
 import { cellLabel } from './cell-label';
 
 export interface ResultFeedbackInput {
@@ -11,6 +13,10 @@ export interface ResultFeedbackInput {
   readonly failureReasons: readonly StageFailureReason[];
   readonly metrics: Pick<StageMetrics, 'firstFloodStep' | 'firstFloodStepByCell'>;
   readonly score: StageScore;
+  /** The validated stage objective used to keep advice goal-aware. */
+  readonly objective?: Pick<StageObjective, 'type' | 'target'>;
+  /** Legal anchor cells before the terminal action; never used to guess a solution. */
+  readonly legalConstructionRange?: readonly number[];
 }
 
 function hasReason(
@@ -18,6 +24,28 @@ function hasReason(
   reason: StageFailureReason
 ): boolean {
   return reasons.includes(reason);
+}
+
+function legalRangeText(input: ResultFeedbackInput): string {
+  const count = input.legalConstructionRange?.length ?? 0;
+  return count > 0
+    ? `施工可能な範囲（${count}か所）`
+    : '施工可能な範囲がないため、候補を切り替える';
+}
+
+function objectiveType(input: ResultFeedbackInput): StageObjective['type'] | null {
+  return input.objective?.type ?? null;
+}
+
+function objectiveAction(input: ResultFeedbackInput): string {
+  const objective = input.objective;
+  if (objective === undefined) return 'ステージの目的';
+  return objectiveTypeLabel(objective.type);
+}
+
+function constructionNextStep(input: ResultFeedbackInput, action: string): string {
+  const range = legalRangeText(input);
+  return `${objectiveAction(input)}。${range}から候補を選び、プレビューで${action}を確認してください。`;
 }
 
 /** Returns the first observable break point without inventing a location. */
@@ -63,25 +91,52 @@ export function resultCauseText(input: ResultFeedbackInput): string {
 export function resultImprovementHint(input: ResultFeedbackInput): string {
   if (input.phase === 'failed') {
     if (hasReason(input.failureReasons, 'protected-overflow')) {
-      return '次に改善する1点: 保護対象へ流れ込む前に、そこを1段上げるか水を別の流路へ分けてください。';
+      if (objectiveType(input) === 'stored-water') {
+        return `次に改善する1点: ${constructionNextStep(input, '池に残る水を保ちつつ、保護対象への浸水が消えるか')}`;
+      }
+      return `次に改善する1点: ${constructionNextStep(input, '保護対象への浸水が消えるか')}`;
     }
     if (hasReason(input.failureReasons, 'danger-leak')) {
-      return '次に改善する1点: 危険側へ向かう低い辺を先に塞ぐか、安全排水へつなげてください。';
+      if (objectiveType(input) === 'stored-water') {
+        return `次に改善する1点: ${constructionNextStep(input, '池にためる進捗を保ちながら危険側への流出が消えるか')}`;
+      }
+      if (objectiveType(input) === 'safe-drain') {
+        return `次に改善する1点: ${constructionNextStep(input, '安全な出口への流れが増え、危険側への流出が消えるか')}`;
+      }
+      if (objectiveType(input) === null) {
+        return '次に改善する1点: 危険側へ向かう低い辺を、施工可能な範囲から選んで先に塞ぐか、安全排水へつながるかをプレビューで確認してください。';
+      }
+      return `次に改善する1点: ${constructionNextStep(input, '保護対象を守りながら危険側への流出が消えるか')}`;
     }
     if (hasReason(input.failureReasons, 'objective-not-met')) {
-      return '次に改善する1点: 目的のセルを先に整え、最後の雨まで進捗を残してください。';
+      if (objectiveType(input) === 'stored-water') {
+        return `次に改善する1点: ${constructionNextStep(input, '池に残る水量が目標へ近づくか')}`;
+      }
+      if (objectiveType(input) === 'safe-drain') {
+        return `次に改善する1点: ${constructionNextStep(input, '安全な出口への進捗が目標へ近づくか')}`;
+      }
+      if (objectiveType(input) === null) {
+        return '次に改善する1点: 目的のセルを先に整え、最後の雨まで進捗を残せる候補かを、施工可能な範囲のプレビューで確認してください。';
+      }
+      return `次に改善する1点: ${constructionNextStep(input, '保護対象を守る進捗が続くか')}`;
     }
-    return '次に改善する1点: 雨予報と最終見込みを見て、危険な流れを先に直してください。';
+    return `次に改善する1点: ${constructionNextStep(input, '雨予報と最終見込みに合うか')}`;
   }
 
   if (input.score.safety < 50) {
-    return '次に改善する1点: 危険側への流出を抑え、より安全に水を流してください。';
+    return `次に改善する1点: ${constructionNextStep(input, '危険側への流出が抑えられるか')}`;
   }
   if (input.score.control < 20) {
-    return '次に改善する1点: 安全排水を分散し、排水能力の超過を抑えてください。';
+    if (objectiveType(input) === 'stored-water') {
+      return `次に改善する1点: ${constructionNextStep(input, '池にためる量が目標を保ったまま伸びるか')}`;
+    }
+    if (objectiveType(input) === 'protect') {
+      return `次に改善する1点: ${constructionNextStep(input, '保護対象を守る進捗が保たれるか')}`;
+    }
+    return `次に改善する1点: ${constructionNextStep(input, '安全排水が増え、排水能力の超過が抑えられるか')}`;
   }
   if (input.score.efficiency < 30) {
-    return '次に改善する1点: 変更セルを減らし、同じ目的を少ない工事で達成してください。';
+    return `次に改善する1点: ${constructionNextStep(input, '同じ目的を少ない工事で達成できるか')}`;
   }
-  return '次に改善する1点: 候補を残し、同じ安全をより短い工事で目指してください。';
+  return `次に改善する1点: ${constructionNextStep(input, '同じ安全をより短い工事で目指せるか')}`;
 }

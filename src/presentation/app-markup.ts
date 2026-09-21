@@ -189,6 +189,13 @@ export function buildAppMarkup(input: AppMarkupInput): string {
         <p id="preview-flow"></p>
         <p id="preview-result"></p>
       </section>
+      <section class="skip-preview" id="skip-preview" aria-label="見送り前の予測" aria-live="polite" aria-atomic="true" hidden>
+        <h2>見送り前の予測</h2>
+        <p id="skip-preview-current"></p>
+        <p id="skip-preview-forecast"></p>
+        <p id="skip-preview-result"></p>
+        <p id="skip-preview-score"></p>
+      </section>
       <div class="action-row">
         <button id="rotate" type="button"><strong>パーツを回す</strong><small>工事パーツの向き</small></button>
         <button id="cancel" type="button"><strong>仮置きを取消</strong><small>選び直す</small></button>

@@ -78,4 +78,32 @@ describe('result feedback', () => {
     });
     expect(resultImprovementHint(value)).toMatch(/^次に改善する1点:/u);
   });
+
+  it('uses the stored-water objective and legal range instead of suggesting safe drainage', () => {
+    const value = input({
+      phase: 'cleared',
+      failureReasons: [],
+      metrics: { firstFloodStep: null, firstFloodStepByCell: [] },
+      objective: { type: 'stored-water', target: 24 },
+      legalConstructionRange: [17, 25],
+      score: { safety: 50, efficiency: 30, control: 10, total: 90, grade: 'A' }
+    });
+    const hint = resultImprovementHint(value);
+    expect(hint).toContain('池にためる目標');
+    expect(hint).toContain('施工可能な範囲（2か所）');
+    expect(hint).not.toContain('安全排水が増え');
+  });
+
+  it('does not invent a protected-cell construction when only another range is legal', () => {
+    const value = input({
+      failureReasons: ['protected-overflow'],
+      objective: { type: 'protect', target: 3 },
+      legalConstructionRange: [9, 10]
+    });
+    const hint = resultImprovementHint(value);
+    expect(hint).toContain('施工可能な範囲（2か所）');
+    expect(hint).toContain('保護対象への浸水が消えるか');
+    expect(hint).not.toContain('保護対象を1段上げ');
+    expect(hint).not.toMatch(/セル[A-H][1-8]/u);
+  });
 });

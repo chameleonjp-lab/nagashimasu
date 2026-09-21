@@ -287,6 +287,12 @@ describe('M2 stage-session adversarial contract', () => {
     expect(preview.boardAfterTurn).toEqual(
       expect.objectContaining({ flowStep: 2 })
     );
+    expect(preview.metricsAfterTurn).toEqual(expect.objectContaining({
+      safeDrained: expect.any(Number),
+      dangerLeaked: expect.any(Number)
+    }));
+    expect(preview.scoreAfterTurn).toEqual(expect.objectContaining({ total: expect.any(Number) }));
+    expect(preview.objectiveProgress).toEqual({ value: 8, target: 1 });
     expect(preview.phase).toBe('awaiting-turn');
     expect(preview.failureReasons).toEqual([]);
     expect(captureAuditState(session)).toEqual(before);
@@ -299,6 +305,8 @@ describe('M2 stage-session adversarial contract', () => {
     expect(execution.snapshot.board).toEqual(preview.boardAfterTurn);
     expect(execution.snapshot.phase).toBe(preview.phase);
     expect(execution.snapshot.failureReasons).toEqual(preview.failureReasons);
+    expect(execution.snapshot.metrics).toEqual(preview.metricsAfterTurn);
+    expect(execution.snapshot.score).toEqual(preview.scoreAfterTurn);
   });
 
   it('reports a failure that appears after the first preview step', () => {

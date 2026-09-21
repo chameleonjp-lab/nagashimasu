@@ -99,6 +99,19 @@ function safeDrainCells(results: readonly FlowStepResult[]): ReadonlySet<number>
   );
 }
 
+function safeDrainReason(
+  definition: ValidatedStageDefinition
+): string {
+  switch (definition.objective.type) {
+    case 'stored-water':
+      return 'この手の水流で安全排水へ流れます（池にためる目標との両立を確認）';
+    case 'safe-drain':
+      return 'この手の水流で安全排水口へ流れます';
+    case 'protect':
+      return 'この手の水流で安全排水へ流れ、保護対象から離れます';
+  }
+}
+
 /** Builds display-only risk information from exact snapshot and preview evidence. */
 export function buildStageProjection(
   definition: ValidatedStageDefinition,
@@ -149,7 +162,7 @@ export function buildStageProjection(
     }
     if (safeSources.has(index)) {
       level = maxRisk(level, 'caution');
-      addReason(reasons, 'この手の水流で安全排水口へ流れます');
+      addReason(reasons, safeDrainReason(definition));
     }
     if (forecastAmount > 0) {
       const rainWouldOverflow = protectedCell && water + forecastAmount > protectedLimit;

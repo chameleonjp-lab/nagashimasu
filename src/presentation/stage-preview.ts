@@ -3,13 +3,26 @@ import type {
   StageSessionSnapshot,
   StageTurnPreview
 } from '../domain/stage-session';
+import { getStageObjectiveProgress } from '../domain/stage-session';
+import type { ValidatedStageDefinition } from '../domain/stage-definition';
 import { cellLabel } from './cell-label';
+import {
+  objectiveProgressTitle,
+  skipForecastResultText
+} from './stage-copy';
 
 export interface StagePreviewSummary {
   readonly construction: string;
   readonly rain: string;
   readonly flow: string;
   readonly result: string;
+}
+
+export interface StageSkipPreviewSummary {
+  readonly current: string;
+  readonly forecast: string;
+  readonly result: string;
+  readonly score: string;
 }
 
 function constructionSummary(
@@ -87,6 +100,11 @@ function resultSummary(preview: StageTurnPreview): string {
   return '見込み: この手の後も続けられます';
 }
 
+function scoreSummary(preview: StageTurnPreview): string {
+  const score = preview.scoreAfterTurn;
+  return `予測スコア: ${score.total}（安全${score.safety}・効率${score.efficiency}・制御${score.control}）`;
+}
+
 /** Converts the authoritative preview evidence into short, user-facing text. */
 export function buildStagePreviewSummary(
   snapshot: StageSessionSnapshot,
@@ -98,5 +116,37 @@ export function buildStagePreviewSummary(
     rain: rainSummary(preview),
     flow: flowSummary(preview),
     result: resultSummary(preview)
+  });
+}
+
+/**
+ * Formats the pure `previewSkip` result for the compact operation-sheet
+ * forecast.  Both sides are labelled explicitly so a player does not confuse
+ * the current board with the board after an unmodified turn.
+ */
+export function buildStageSkipPreviewSummary(
+  definition: ValidatedStageDefinition,
+  snapshot: StageSessionSnapshot,
+  preview: StageTurnPreview | null
+): StageSkipPreviewSummary | null {
+  if (preview === null || preview.action.type !== 'skip') return null;
+
+  const currentProgress = getStageObjectiveProgress(
+    definition,
+    snapshot.board,
+    snapshot.metrics
+  );
+  const target = currentProgress.target;
+
+  return Object.freeze({
+    current: `現在: ${objectiveProgressTitle(definition)} ${currentProgress.value} / ${target}`,
+    forecast: `見送り後の予測: ${objectiveProgressTitle(definition)} ${preview.objectiveProgress.value} / ${target}`,
+    result: skipForecastResultText(
+      definition.objective,
+      preview.phase,
+      preview.objectiveProgress,
+      preview.failureReasons.map(failureReasonText)
+    ),
+    score: scoreSummary(preview)
   });
 }
