@@ -188,6 +188,7 @@ const mobileControlsBackdrop = required<HTMLElement>('#mobile-controls-backdrop'
 const mobileControlsToggle = required<HTMLButtonElement>('#mobile-controls-toggle');
 const mobileControlsClose = required<HTMLButtonElement>('#mobile-controls-close');
 const mobileStagePrompt = required<HTMLElement>('#mobile-stage-prompt');
+const controlsSheetDescription = required<HTMLElement>('#controls-sheet-description');
 const cameraLeftButton = required<HTMLButtonElement>('#camera-left');
 const cameraRightButton = required<HTMLButtonElement>('#camera-right');
 const cameraResetButton = required<HTMLButtonElement>('#camera-reset');
@@ -725,6 +726,7 @@ function setCameraRotation(nextRotation: number): void {
 function updateMobileStagePrompt(view: StageControllerView): void {
   if (!isMobileViewport()) {
     mobileStagePrompt.textContent = '';
+    controlsSheetDescription.textContent = '';
     mobileControlsToggle.hidden = true;
     mobileControlsToggle.disabled = false;
     return;
@@ -733,20 +735,24 @@ function updateMobileStagePrompt(view: StageControllerView): void {
   mobileControlsToggle.disabled = playback !== null || boardViewState !== 'ready' || boardViewInputLocked;
   if (playback !== null) {
     mobileStagePrompt.textContent = '工事・雨・水流を見ています。';
+    controlsSheetDescription.textContent = mobileStagePrompt.textContent;
     mobileControlsToggle.textContent = '操作を閉じる';
     return;
   }
   if (view.snapshot.phase !== 'awaiting-turn') {
     mobileStagePrompt.textContent = '結果を確認してください。';
+    controlsSheetDescription.textContent = mobileStagePrompt.textContent;
     mobileControlsToggle.textContent = '結果を開く';
     return;
   }
   if (view.pending !== null) {
     mobileStagePrompt.textContent = '仮置き中です。盤面の下で予測を確認します。';
+    controlsSheetDescription.textContent = mobileStagePrompt.textContent;
     mobileControlsToggle.textContent = '予測・確定を開く';
     return;
   }
   mobileStagePrompt.textContent = '候補を選んだら、盤面をタップして置きます。';
+  controlsSheetDescription.textContent = mobileStagePrompt.textContent;
   mobileControlsToggle.textContent = '工事を選ぶ';
 }
 

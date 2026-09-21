@@ -4,7 +4,7 @@ Total output lines: 1767
 # ナガシマス — ブラウザゲーム企画・技術・実装計画書
 
 - **文書状態:** Accepted／M4 P0画面再設計中
-- **版:** 0.4.50
+- **版:** 0.4.51
 - **初版作成日:** 2026-08-10（JST）
 - **ゲームクリエイター検証反映日:** 2026-08-10（JST）
 - **実装開始日:** 2026-08-13（JST）
@@ -1727,6 +1727,14 @@ GitHub Pagesの設定と公開は当初の実装開始指示には含めなか�
 - `npm run check`（47ファイル／248テスト、ドメイン・画面build／smoke）を合格させる。iPhone 17 Pro Safari、VoiceOver、初見プレイ3名、Sol・Highの独立レビューはM4ゲートへ残す
 
 詳細な確認手順は `docs/PR8_ACCESSIBLE_MOBILE_ACCEPTANCE.md` に記録する
+
+### 0.4.51 — モバイル操作シートの状態読み上げ
+
+- 操作シートへ現在の状態を一文で説明する`aria-describedby`とpolite statusを追加し、候補選択前、仮置き中、再生中、終端の状態をVoiceOverへ伝える
+- 既存の候補、施工、見送り、Undo、セル確認のイベントとゲーム状態は変更しない
+- `npm run check`（47ファイル／248テスト、ドメイン・画面build／smoke）を合格させる。iPhone 17 Pro Safari、VoiceOver、初見プレイ3名、Sol・Highの独立レビューはM4ゲートへ残す
+
+詳細な確認手順は `docs/PR9_MOBILE_ARIA_STATE.md` に記録する
 
 ### 0.4.8 — M4軽減動作対応
 

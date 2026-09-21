@@ -161,11 +161,12 @@ export function buildAppMarkup(input: AppMarkupInput): string {
       </section>
     </section>
     <div class="mobile-controls-backdrop" id="mobile-controls-backdrop" aria-hidden="true" hidden></div>
-    <section class="game-controls" id="game-controls" aria-labelledby="controls-sheet-title">
+    <section class="game-controls" id="game-controls" aria-labelledby="controls-sheet-title" aria-describedby="controls-sheet-description">
       <div class="controls-sheet-heading">
         <h2 class="controls-title" id="controls-sheet-title">この手の操作</h2>
         <button id="mobile-controls-close" type="button">盤面へ戻る</button>
       </div>
+      <p class="controls-sheet-description" id="controls-sheet-description" role="status" aria-live="polite"></p>
       <p class="construction-help" id="construction-help">緑の丸は、候補カードの◎に対応する基準セルです。座標は予報と同じ表記です。</p>
       <div class="candidate-row">
         <button class="candidate-card" id="candidate-a" type="button" aria-pressed="true">
