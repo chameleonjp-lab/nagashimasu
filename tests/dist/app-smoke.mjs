@@ -92,6 +92,7 @@ for (const marker of [
   '4回の水流後',
   'preview-result',
   'cell-inspection',
+  'cell-inspection-facilities',
   '選択セルの確認',
   'この手の予測:',
   '危険理由:',
@@ -102,6 +103,7 @@ for (const marker of [
   '失敗見込み',
   'result-hint',
   'result-undo-help',
+  'result-undo',
   '失敗した直前の手を1回だけ戻せます',
   '次に改善する1点',
   'スコアは安全50点',
@@ -177,8 +179,8 @@ if (cssMatch?.[1] !== undefined) {
   if (!css.includes('min-height:44px')) throw new Error('app stylesheet is missing the cell picker touch target');
   if (!css.includes('mobile-controls')) throw new Error('app stylesheet is missing the mobile operation sheet');
   if (!css.includes('touch-action:none')) throw new Error('app stylesheet does not isolate board gestures');
-  if (!css.includes('game-controls.is-terminal') || !css.includes(':not(#undo)')) {
-    throw new Error('app stylesheet must keep the existing Undo button visible after failure');
+  if (!css.includes('game-controls.is-terminal') || !css.includes('result-terminal-actions')) {
+    throw new Error('app stylesheet must keep the terminal Undo action reachable after failure');
   }
 }
 console.log(`app smoke ok (${javascriptFiles.length} JavaScript chunks; Three.js in ${threeChunks.map((script) => script.name).join(', ')})`);

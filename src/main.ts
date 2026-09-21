@@ -256,6 +256,7 @@ const candidateButtons = [
 const cellInspectionElement = required<HTMLElement>('#cell-inspection');
 const cellInspectionTitleElement = required<HTMLElement>('#cell-inspection-title-text');
 const cellInspectionCurrentElement = required<HTMLElement>('#cell-inspection-current');
+const cellInspectionFacilitiesElement = required<HTMLElement>('#cell-inspection-facilities');
 const cellInspectionForecastElement = required<HTMLElement>('#cell-inspection-forecast');
 const cellInspectionRiskElement = required<HTMLElement>('#cell-inspection-risk');
 const rotateButton = required<HTMLButtonElement>('#rotate');
@@ -264,6 +265,7 @@ const confirmButton = required<HTMLButtonElement>('#confirm');
 const skipButton = required<HTMLButtonElement>('#skip');
 const undoButton = required<HTMLButtonElement>('#undo');
 const resultPanel = required<HTMLElement>('#result-panel');
+const resultUndoButton = required<HTMLButtonElement>('#result-undo');
 const resultTitle = required<HTMLElement>('#result-title');
 const resultSummary = required<HTMLElement>('#result-summary');
 const resultFirstBreak = required<HTMLElement>('#result-first-break');
@@ -294,6 +296,8 @@ let timerPausedForBoardRecovery = false;
 let playbackPausedForBoardRecovery = false;
 let cameraRotation: BoardRotation = 0;
 let lastMessage = 'まず緑の丸を1つ押して仮置きしてください。';
+/** A presentation-only cell selected for inspection without changing the pending placement. */
+let inspectedCellIndex: number | null = null;
 let lastTurnOutcome: TurnOutcomeSummary | null = null;
 let activeConstructionVisual: ConstructionVisual | null = null;
 interface TurnPlaybackVisual {
@@ -998,6 +1002,7 @@ function invalidatePlayback(): void {
 function beginNewSession(): void {
   sessionId += 1;
   invalidatePlayback();
+  inspectedCellIndex = null;
   lastResultHintContext = Object.freeze({
     legalConstructionRange: Object.freeze([])
   });
@@ -1095,6 +1100,7 @@ function showStagePicker(force = false): void {
   paused = false;
   pausePanel.hidden = true;
   controller.cancelPlacement();
+  inspectedCellIndex = null;
   setMobileControlsOpen(false);
   gameShell.hidden = true;
   startPanel.hidden = false;
@@ -1277,6 +1283,7 @@ function startPlayback(
     execution.snapshot.stageId !== currentStage.id
   ) return;
   stopTurnTimer();
+  inspectedCellIndex = null;
   setMobileControlsOpen(false);
   playbackId += 1;
   playback?.cancel();
@@ -1362,7 +1369,7 @@ function resizeCanvas(): void {
   render();
 }
 
-function selectCellAt(clientX: number, clientY: number): void {
+function selectCellAt(clientX: number, clientY: number, allowInspection = false): void {
   if (
     boardView === null ||
     boardViewState !== 'ready' ||
@@ -1373,12 +1380,22 @@ function selectCellAt(clientX: number, clientY: number): void {
   const view = controller.view;
   if (view.snapshot.phase !== 'awaiting-turn') return;
   const cell = boardView.pickCell(clientX, clientY, view.legalAnchorIndices);
-  if (cell !== null) {
-    controller.setAnchor(cell);
-    lastMessage = `${cellLabel(cell)}に仮置きしました。施工確定で手番が進みます。`;
+  if (cell === null) return;
+  if (!view.legalAnchorIndices.includes(cell)) {
+    // A tap on a non-construction cell is an inspection only. It must not
+    // create an invalid pending action or consume any gameplay state.
+    if (!allowInspection) return;
+    inspectedCellIndex = cell;
+    lastMessage = `${cellLabel(cell)}を確認しました。施工位置は変わりません。`;
     if (isMobileViewport()) setMobileControlsOpen(true);
     render();
+    return;
   }
+  inspectedCellIndex = cell;
+  controller.setAnchor(cell);
+  lastMessage = `${cellLabel(cell)}に仮置きしました。施工確定で手番が進みます。`;
+  if (isMobileViewport()) setMobileControlsOpen(true);
+  render();
 }
 
 /** Updates only the wall-clock timer; the game view is unchanged on a tick. */
@@ -1460,6 +1477,7 @@ function render(): void {
         : []
     )
     : [];
+  const inspectionIndex = inspectedCellIndex ?? view.pending?.anchorIndex ?? null;
   const labelCells = [
     ...view.legalAnchorIndices,
     ...projection.forecastCells.map((forecast) => forecast.index),
@@ -1469,7 +1487,7 @@ function render(): void {
     )
   ];
   const boardOptions: BoardRenderOptions = {
-    selectedCell: view.pending?.anchorIndex ?? null,
+    selectedCell: view.pending?.anchorIndex ?? inspectedCellIndex,
     preview: view.preview,
     constructionAnchorCells: playback === null ? view.legalAnchorIndices : [],
     activePlacementCells: playbackFrame?.event?.placementCells ?? [],
@@ -1528,9 +1546,9 @@ function render(): void {
   updateMobileStagePrompt(view);
   cameraLabel.textContent = cameraText(cameraRotation);
 
-  const selectedRisk = view.pending === null
+  const selectedRisk = inspectionIndex === null
     ? null
-    : projection.risks[view.pending.anchorIndex] ?? null;
+    : projection.risks[inspectionIndex] ?? null;
   if (selectedRisk === null) {
     riskElement.textContent = '危険度: セルを選ぶと、雨と水流の理由を表示します。';
   } else {
@@ -1538,17 +1556,18 @@ function render(): void {
     riskElement.textContent = `${cellLabel(selectedRisk.index)} 危険度: ${riskLabel(selectedRisk.level)} — ${reasons}`;
   }
 
-  const cellInspection = view.pending === null
+  const cellInspection = inspectionIndex === null
     ? null
     : buildCellInspection({
-      index: view.pending.anchorIndex,
+      index: inspectionIndex,
       board: view.snapshot.board,
-      preview: view.preview,
+      preview: view.pending?.anchorIndex === inspectionIndex ? view.preview : null,
       risk: selectedRisk
     });
   cellInspectionElement.hidden = cellInspection === null;
   cellInspectionTitleElement.textContent = cellInspection?.title ?? '';
   cellInspectionCurrentElement.textContent = cellInspection?.current ?? '';
+  cellInspectionFacilitiesElement.textContent = cellInspection?.facilities ?? '';
   cellInspectionForecastElement.textContent = cellInspection?.forecast ?? '';
   cellInspectionRiskElement.textContent = cellInspection?.risk ?? '';
 
@@ -1594,7 +1613,11 @@ function render(): void {
   if (previewFailure) confirmButton.setAttribute('aria-label', '施工確定（失敗見込み）');
   else confirmButton.removeAttribute('aria-label');
   skipButton.disabled = locked || view.snapshot.phase !== 'awaiting-turn';
-  undoButton.disabled = locked || view.snapshot.undoUsed || view.snapshot.revision === 0;
+  const undoDisabled = locked || view.snapshot.undoUsed || view.snapshot.revision === 0;
+  undoButton.disabled = undoDisabled;
+  undoButton.hidden = isMobileViewport() && terminal;
+  resultUndoButton.disabled = undoDisabled;
+  resultUndoButton.hidden = !isMobileViewport() || !terminal;
 
   const validationMessage = view.validation?.valid === false
     ? rejectionReasonText(view.validation.reason)
@@ -1671,7 +1694,7 @@ function render(): void {
 }
 
 const pointerController = new PointerController(canvas, {
-  onStart: (data) => selectCellAt(data.clientX, data.clientY),
+  onStart: (data) => selectCellAt(data.clientX, data.clientY, true),
   onMove: (data) => selectCellAt(data.clientX, data.clientY),
   onEnd: () => render(),
   onCancel: () => {
@@ -1706,6 +1729,7 @@ cellPickerButtons.forEach((button) => {
       view.snapshot.phase !== 'awaiting-turn' ||
       !view.legalAnchorIndices.includes(index)
     ) return;
+    inspectedCellIndex = index;
     controller.setAnchor(index);
     lastMessage = `${cellLabel(index)}に仮置きしました。施工確定で手番が進みます。`;
     render();
@@ -1799,7 +1823,7 @@ skipButton.addEventListener('click', () => {
   render();
 });
 
-undoButton.addEventListener('click', () => {
+function handleUndo(): void {
   if (playback !== null || paused) return;
   const beforeView = controller.view;
   const execution = controller.undo();
@@ -1813,7 +1837,10 @@ undoButton.addEventListener('click', () => {
     );
   }
   render();
-});
+}
+
+undoButton.addEventListener('click', handleUndo);
+resultUndoButton.addEventListener('click', handleUndo);
 
 retryButton.addEventListener('click', () => {
   if (playback !== null || paused || !requirePlayerName()) return;

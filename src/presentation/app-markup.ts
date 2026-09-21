@@ -180,6 +180,7 @@ export function buildAppMarkup(input: AppMarkupInput): string {
         <h2 id="cell-inspection-title">選択セルの確認</h2>
         <p id="cell-inspection-title-text"></p>
         <p id="cell-inspection-current"></p>
+        <p id="cell-inspection-facilities"></p>
         <p id="cell-inspection-forecast"></p>
         <p id="cell-inspection-risk"></p>
       </section>
@@ -241,6 +242,9 @@ export function buildAppMarkup(input: AppMarkupInput): string {
       <section class="result-panel" id="result-panel" tabindex="-1" hidden aria-live="polite">
         <h2 id="result-title"></h2>
         <p id="result-summary"></p>
+        <div class="result-terminal-actions" aria-label="結果後の操作">
+          <button id="result-undo" type="button"><strong>1手戻す</strong><small>失敗前の盤面から考え直す</small></button>
+        </div>
         <h3>なぜこの結果になったか</h3>
         <p id="result-first-break"></p>
         <p id="result-cause"></p>
