@@ -20,6 +20,39 @@ describe('StageController', () => {
     expect(controller.session.snapshot.completedTurns).toBe(0);
   });
 
+  it('reuses the derived view and skip preview while the session state is unchanged', () => {
+    const controller = new StageController(stage);
+    controller.setAnchor(8);
+
+    const firstView = controller.view;
+    const secondView = controller.view;
+    expect(secondView).toBe(firstView);
+    expect(controller.legalAnchorIndices).toBe(firstView.legalAnchorIndices);
+    expect(controller.validation).toBe(firstView.validation);
+    expect(controller.preview).toBe(firstView.preview);
+
+    const firstSkipPreview = controller.previewSkip();
+    expect(controller.previewSkip()).toBe(firstSkipPreview);
+  });
+
+  it('invalidates cached evidence when selection, placement, or the session changes', () => {
+    const controller = new StageController(stage);
+    const initial = controller.view;
+
+    controller.selectCandidate(1);
+    expect(controller.view).not.toBe(initial);
+
+    controller.setAnchor(8);
+    const placed = controller.view;
+    controller.rotate();
+    expect(controller.view).not.toBe(placed);
+
+    const before = controller.session.reversibleGameplayHash;
+    expect(controller.confirm()?.accepted).toBe(true);
+    expect(controller.session.reversibleGameplayHash).not.toBe(before);
+    expect(controller.view).not.toBe(placed);
+  });
+
   it('keeps pointer placement separate from confirmation', () => {
     const controller = new StageController(stage);
     controller.setAnchor(8);

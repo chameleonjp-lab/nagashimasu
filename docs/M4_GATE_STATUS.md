@@ -219,3 +219,13 @@ M4は「コードがある」だけで完了とはせず、自動検査、初見
 - `npm run check` は46ファイル／241テスト、ドメインbuild・smoke、画面build・smokeを含めて合格。iPhone 17 Pro、縦横画面、文字拡大、VoiceOver、初見3名、Sol・Highの独立レビューは未確認で、M4完了とは扱わない。
 
 詳細な確認手順は `docs/PR5_ADVICE_SKIP_FORECAST.md` に記録した。
+
+## 2026-09-21 PR6 表示用再計算の抑制
+
+- PR5マージ後のmain `5cddcbdadbbd29dfdf44417a1c0af1fe52275c2b` を基点に、タイマー更新・再生フレーム更新で変化しない `StageController.view`、合法セル一覧、仮置きプレビュー、見送り／時間切れ予測をキャッシュした。
+- タイマーのtickはタイマー表示だけを更新し、盤面・候補・予測の通常renderを呼び出さない。
+- キーはrevision・actionId・選択候補・仮置きスロット／座標／回転で、候補選択、仮置き、回転、取消、受理済み操作では明示的に破棄する。水流、勝敗、スコア、候補補給、Replay、Undo、保存形式は変更していない。
+- 監査時の基準はステージ3仮置き中100回取得で `validate 6500回`、`preview 100回`、ローカル267.6ms。今回の自動検査はキャッシュの再利用・無効化だけを確認し、DOM・GPU・iPhone実機性能は未確認である。
+- `npm run check` は46ファイル／243テスト、ドメインbuild・smoke、画面build・smokeを含めて合格。iPhone 17 Pro、縦横画面、文字拡大、VoiceOver、初見3名、Sol・Highの独立レビューは未確認で、M4完了とは扱わない。
+
+詳細な確認手順は `docs/PR6_RENDER_RECALCULATION.md` に記録した。

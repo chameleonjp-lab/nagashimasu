@@ -959,7 +959,7 @@ function startTurnTimer(): void {
     return;
   }
   turnTimer = new TurnTimer({
-    onTick: () => render(),
+    onTick: () => renderTimer(),
     onExpire: handleTimeout
   });
   turnTimer.start(duration);
@@ -1381,6 +1381,28 @@ function selectCellAt(clientX: number, clientY: number): void {
   }
 }
 
+/** Updates only the wall-clock timer; the game view is unchanged on a tick. */
+function renderTimer(): void {
+  const phase = controller.view.snapshot.phase;
+  const duration = thinkingDurationMs();
+  const remaining = turnTimer?.remainingMs ?? null;
+  const terminal = phase !== 'awaiting-turn';
+  const timerText = playback !== null
+    ? '演出中'
+    : paused
+      ? '一時停止中'
+      : terminal
+        ? '終了'
+        : duration === null
+          ? '時間制限なし'
+          : `残り ${formatRemainingSeconds(remaining ?? duration)}`;
+  timerElement.textContent = timerText;
+  timerElement.classList.toggle(
+    'timer-warning',
+    !paused && playback === null && remaining !== null && remaining <= 3_000
+  );
+}
+
 function render(): void {
   const view = controller.view;
   const playbackFrame: TracePlaybackFrame | null = playback?.frame ?? null;
@@ -1498,24 +1520,9 @@ function render(): void {
     : `雨予報: ${projection.forecasts.map((forecast) => `あと${forecast.turnsUntil}手・${forecast.totalAmount}・${forecast.cells.map((cell) => cellLabel(cell.index)).join('／')}`).join('、')}`;
   forecastElement.textContent = forecastText;
   turnElement.textContent = `手数 ${view.snapshot.completedTurns} / ${currentStage.maxTurns}`;
-  const duration = thinkingDurationMs();
-  const remaining = turnTimer?.remainingMs ?? null;
   const terminal = view.snapshot.phase !== 'awaiting-turn';
   gameControls.classList.toggle('is-terminal', terminal);
-  const timerText = playback !== null
-    ? '演出中'
-    : paused
-      ? '一時停止中'
-      : terminal
-        ? '終了'
-        : duration === null
-          ? '時間制限なし'
-          : `残り ${formatRemainingSeconds(remaining ?? duration)}`;
-  timerElement.textContent = timerText;
-  timerElement.classList.toggle(
-    'timer-warning',
-    !paused && playback === null && remaining !== null && remaining <= 3_000
-  );
+  renderTimer();
   updateTurnGuide(view, playbackFrame);
   updatePhaseTimeline(view, playbackFrame);
   updateMobileStagePrompt(view);
