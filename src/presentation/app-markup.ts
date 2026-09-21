@@ -176,6 +176,13 @@ export function buildAppMarkup(input: AppMarkupInput): string {
           <span class="candidate-copy"><strong></strong><small></small></span>
         </button>
       </div>
+      <section class="cell-inspection" id="cell-inspection" aria-labelledby="cell-inspection-title" aria-live="polite" aria-atomic="true" hidden>
+        <h2 id="cell-inspection-title">選択セルの確認</h2>
+        <p id="cell-inspection-title-text"></p>
+        <p id="cell-inspection-current"></p>
+        <p id="cell-inspection-forecast"></p>
+        <p id="cell-inspection-risk"></p>
+      </section>
       <section class="preview-summary" id="preview-summary" aria-label="施工プレビュー" aria-live="polite" aria-atomic="true" hidden>
         <p id="preview-construction"></p>
         <p id="preview-rain"></p>
@@ -234,6 +241,7 @@ export function buildAppMarkup(input: AppMarkupInput): string {
         <p class="result-score-guide" id="result-score-guide"></p>
         <p id="result-reasons"></p>
         <p class="result-hint" id="result-hint"></p>
+        <p class="result-undo-help" id="result-undo-help" hidden></p>
         <section class="result-sharing" aria-labelledby="result-share-title">
           <h3 id="result-share-title">結果をシェア</h3>
           <p id="result-player" class="result-player"></p>
