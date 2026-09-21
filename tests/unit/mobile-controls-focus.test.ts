@@ -8,7 +8,8 @@ const readyInput = {
   selectedCandidateSlot: 0 as const,
   boardReady: true,
   inputLocked: false,
-  playbackActive: false
+  playbackActive: false,
+  undoAvailable: false
 };
 
 describe('mobile controls focus', () => {
@@ -24,6 +25,14 @@ describe('mobile controls focus', () => {
   it('focuses retry after the result sheet opens', () => {
     expect(mobileControlsFocusTarget({ ...readyInput, phase: 'failed' })).toBe('retry');
     expect(mobileControlsFocusTarget({ ...readyInput, phase: 'cleared' })).toBe('retry');
+  });
+
+  it('focuses the terminal Undo before retry when it is available', () => {
+    expect(mobileControlsFocusTarget({
+      ...readyInput,
+      phase: 'failed',
+      undoAvailable: true
+    })).toBe('result-undo');
   });
 
   it('keeps the close control available while the board is unavailable', () => {

@@ -58,6 +58,7 @@ import {
   buildStageSkipPreviewSummary
 } from './presentation/stage-preview';
 import { buildCellInspection } from './presentation/cell-inspection';
+import { renderCellInspectionPicker } from './presentation/cell-inspection-picker';
 import { firstActionGuideText } from './presentation/first-action-guide';
 import {
   failureReasonText,
@@ -145,6 +146,11 @@ const cellPickerMarkup = Array.from(
   (_, index) => `<button class="cell-picker-cell" type="button" data-cell-index="${index}" aria-pressed="false" disabled>${cellLabel(index)}</button>`
 ).join('');
 
+const cellInspectionPickerMarkup = Array.from(
+  { length: CELL_COUNT },
+  (_, index) => `<button class="cell-inspection-picker-cell" type="button" data-cell-index="${index}" aria-pressed="false" disabled>${cellLabel(index)}</button>`
+).join('');
+
 const stageOptionsMarkup = BUILT_IN_STAGES.map((definition) => `
   <button class="stage-option" type="button" data-stage-id="${definition.id}" aria-pressed="${definition.id === currentStage.id}">
     <span class="stage-option-number">ステージ${stageNumber(definition)}</span>
@@ -160,6 +166,7 @@ appRoot.innerHTML = buildAppMarkup({
   stageGoal: stageGoalExplanation(currentStage),
   stageOptionsMarkup,
   cellPickerMarkup,
+  cellInspectionPickerMarkup,
   labUrl: LAB_URL
 });
 
@@ -229,6 +236,10 @@ const constructionHelpElement = required<HTMLElement>('#construction-help');
 const cellPickerHelpElement = required<HTMLElement>('#cell-picker-help');
 const cellPickerButtons = Array.from(
   appRoot.querySelectorAll<HTMLButtonElement>('.cell-picker-cell')
+);
+const cellInspectionPickerHelpElement = required<HTMLElement>('#cell-inspection-picker-help');
+const cellInspectionPickerButtons = Array.from(
+  appRoot.querySelectorAll<HTMLButtonElement>('.cell-inspection-picker-cell')
 );
 const previewSummaryElement = required<HTMLElement>('#preview-summary');
 const previewConstructionElement = required<HTMLElement>('#preview-construction');
@@ -616,7 +627,8 @@ function focusMobileControls(): void {
     selectedCandidateSlot: view.candidates.find((candidate) => candidate.selected)?.slot ?? null,
     boardReady: boardViewState === 'ready',
     inputLocked: boardViewInputLocked,
-    playbackActive: playback !== null
+    playbackActive: playback !== null,
+    undoAvailable: !view.snapshot.undoUsed && view.snapshot.revision > 0
   });
   const element = target === 'candidate-a'
     ? candidateButtons[0]
@@ -624,6 +636,8 @@ function focusMobileControls(): void {
       ? candidateButtons[1]
       : target === 'confirm'
         ? confirmButton
+        : target === 'result-undo'
+          ? resultUndoButton
         : target === 'retry'
           ? retryButton
           : mobileControlsClose;
@@ -1595,6 +1609,15 @@ function render(): void {
       : `緑の丸（カードの◎）が、選んだ候補の基準セルです（${view.legalAnchorIndices.length}か所）。座標は予報と同じ表記です。`
     : '現在、選んだ候補を置ける場所はありません。見送りで水を進められます。';
   renderCellPicker(cellPickerHelpElement, cellPickerButtons, view, locked);
+  renderCellInspectionPicker(
+    cellInspectionPickerHelpElement,
+    cellInspectionPickerButtons,
+    {
+      snapshot: view.snapshot,
+      inspectedCellIndex
+    },
+    locked
+  );
 
   for (const card of view.candidates) {
     const button = candidateButtons[card.slot];
@@ -1732,6 +1755,23 @@ cellPickerButtons.forEach((button) => {
     inspectedCellIndex = index;
     controller.setAnchor(index);
     lastMessage = `${cellLabel(index)}に仮置きしました。施工確定で手番が進みます。`;
+    render();
+  });
+});
+
+cellInspectionPickerButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    if (playback !== null || paused || boardViewInputLocked) return;
+    const index = Number(button.dataset['cellIndex']);
+    const view = controller.view;
+    if (
+      !Number.isSafeInteger(index) ||
+      index < 0 ||
+      index >= CELL_COUNT ||
+      view.snapshot.phase !== 'awaiting-turn'
+    ) return;
+    inspectedCellIndex = index;
+    lastMessage = `${cellLabel(index)}を確認しました。施工位置は変わりません。`;
     render();
   });
 });
