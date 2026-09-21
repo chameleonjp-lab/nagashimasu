@@ -17,7 +17,7 @@
 
 - `cell-inspection` の現在値・予測値・排水口／保護対象・危険理由の整形を検査する。
 - アプリの結果Undo、選択セル確認欄、モバイル終端CSS契約を画面マークアップ／smokeで検査する。
-- `npm run check`（型検査、46ファイル／243テスト、Domain build・smoke、画面build・smoke）を合格させる。
+- `npm run check`（型検査、46ファイル／244テスト、Domain build・smoke、画面build・smoke）を合格させる。
 
 ## iPhone 17 Pro確認手順
 
