@@ -5,7 +5,7 @@ import type { StageCellRiskView } from './stage-projection';
 
 export interface CellInspectionInput {
   readonly index: number;
-  readonly board: Pick<BoardSnapshot, 'terrain' | 'water'>;
+  readonly board: Pick<BoardSnapshot, 'terrain' | 'water' | 'drainCapacity'>;
   readonly preview: StageTurnPreview | null;
   readonly risk: StageCellRiskView | null;
 }
@@ -13,6 +13,7 @@ export interface CellInspectionInput {
 export interface CellInspectionText {
   readonly title: string;
   readonly current: string;
+  readonly facilities: string;
   readonly forecast: string;
   readonly risk: string;
 }
@@ -44,14 +45,17 @@ export function buildCellInspection(
   const previewWater = input.preview === null
     ? null
     : cellValue(input.preview.boardAfterTurn.water, input.index);
+  const drainCapacity = cellValue(input.board.drainCapacity, input.index);
   const forecastAmount = input.risk?.forecastAmount ?? 0;
   const reasons = input.risk?.reasons ?? [];
+  const protectedCell = input.risk?.protectedCell ?? false;
 
   return Object.freeze({
     title: `${cellLabel(input.index)}の確認`,
     current: `現在: 地形${currentTerrain}・水量${currentWater}`,
+    facilities: `設備: ${protectedCell ? '保護対象' : '保護対象ではありません'}・${drainCapacity > 0 ? `排水口最大${drainCapacity}/回` : '排水口なし'}`,
     forecast: previewWater === null
-      ? '予測: この場所では候補を置けません'
+      ? `予測: この場所では候補を置けません${forecastAmount > 0 ? `（次の雨${forecastAmount}）` : ''}`
       : `この手の予測: 地形${previewTerrain}・水量${previewWater}${forecastAmount > 0 ? `（次の雨${forecastAmount}）` : ''}`,
     risk: reasons.length > 0
       ? `危険理由: ${reasons.join('／')}`

@@ -28,6 +28,7 @@ describe('cell inspection', () => {
 
     expect(inspection?.title).toBe('セルA2の確認');
     expect(inspection?.current).toContain('現在: 地形');
+    expect(inspection?.facilities).toContain('排水口');
     expect(inspection?.forecast).toContain('この手の予測:');
     expect(inspection?.risk).toMatch(/^危険理由:/u);
     expect(controller.session.snapshot.completedTurns).toBe(0);
@@ -45,8 +46,33 @@ describe('cell inspection', () => {
     });
 
     expect(inspection?.current).toContain('現在:');
-    expect(inspection?.forecast).toBe('予測: この場所では候補を置けません');
+    expect(inspection?.forecast).toContain('予測: この場所では候補を置けません');
+    expect(inspection?.facilities).toContain('保護対象ではありません');
     expect(inspection?.risk).toBe('危険理由: 今の予測では大きな危険はありません');
+    expect(controller.session.snapshot.completedTurns).toBe(0);
+  });
+
+  it('keeps non-placement inspection useful with exact rain and facility evidence', () => {
+    const controller = new StageController(stage);
+    const board = controller.view.snapshot.board;
+    const inspection = buildCellInspection({
+      index: 0,
+      board,
+      preview: null,
+      risk: {
+        index: 0,
+        level: 'danger',
+        reasons: Object.freeze(['次の雨が5降ります']),
+        water: board.water[0] ?? 0,
+        terrain: board.terrain[0] ?? 0,
+        forecastAmount: 5,
+        protectedCell: true
+      }
+    });
+
+    expect(inspection?.facilities).toContain('保護対象');
+    expect(inspection?.forecast).toContain('次の雨5');
+    expect(inspection?.risk).toContain('次の雨が5降ります');
     expect(controller.session.snapshot.completedTurns).toBe(0);
   });
 
