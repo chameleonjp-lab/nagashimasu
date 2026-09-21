@@ -7,6 +7,7 @@ const markup = buildAppMarkup({
   stageGoal: 'テスト目標',
   stageOptionsMarkup: '<button data-stage-id="test-stage">テスト</button>',
   cellPickerMarkup: '<button data-cell-index="7">B1</button>',
+  cellInspectionPickerMarkup: '<button data-cell-index="7">B1</button>',
   labUrl: 'https://example.test/lab'
 });
 
@@ -19,6 +20,8 @@ describe('app markup', () => {
     expect(markup).toContain('id="result-panel"');
     expect(markup).toContain('id="cell-inspection"');
     expect(markup).toContain('id="cell-inspection-facilities"');
+    expect(markup).toContain('id="cell-inspection-picker"');
+    expect(markup).toContain('id="cell-inspection-picker-grid"');
     expect(markup).toContain('id="result-undo-help"');
     expect(markup).toContain('id="result-undo"');
     expect(markup).toContain('id="skip-preview"');

@@ -5,6 +5,7 @@ export type MobileControlsFocusTarget =
   | 'candidate-a'
   | 'candidate-b'
   | 'confirm'
+  | 'result-undo'
   | 'retry';
 
 export interface MobileControlsFocusInput {
@@ -14,6 +15,7 @@ export interface MobileControlsFocusInput {
   readonly boardReady: boolean;
   readonly inputLocked: boolean;
   readonly playbackActive: boolean;
+  readonly undoAvailable: boolean;
 }
 
 /** Chooses the first useful control after the mobile sheet becomes visible. */
@@ -21,7 +23,9 @@ export function mobileControlsFocusTarget(
   input: MobileControlsFocusInput
 ): MobileControlsFocusTarget {
   if (!input.boardReady || input.inputLocked || input.playbackActive) return 'close';
-  if (input.phase !== 'awaiting-turn') return 'retry';
+  if (input.phase !== 'awaiting-turn') {
+    return input.undoAvailable ? 'result-undo' : 'retry';
+  }
   if (input.hasPendingPlacement) return 'confirm';
   return input.selectedCandidateSlot === 1 ? 'candidate-b' : 'candidate-a';
 }

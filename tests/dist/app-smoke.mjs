@@ -93,6 +93,9 @@ for (const marker of [
   'preview-result',
   'cell-inspection',
   'cell-inspection-facilities',
+  'cell-inspection-picker',
+  'cell-inspection-picker-grid',
+  '施工位置・手数・操作ログは変わりません',
   '選択セルの確認',
   'この手の予測:',
   '危険理由:',
@@ -176,6 +179,7 @@ if (cssMatch?.[1] !== undefined) {
   if (!/overflow:hidden auto/u.test(css)) throw new Error('app stylesheet does not allow vertical page scrolling');
   if (!css.includes('touch-action:pan-y')) throw new Error('app stylesheet does not preserve board vertical pan');
   if (!css.includes('cell-picker-grid')) throw new Error('app stylesheet is missing the cell picker');
+  if (!css.includes('cell-inspection-picker-grid')) throw new Error('app stylesheet is missing the cell inspection picker');
   if (!css.includes('min-height:44px')) throw new Error('app stylesheet is missing the cell picker touch target');
   if (!css.includes('mobile-controls')) throw new Error('app stylesheet is missing the mobile operation sheet');
   if (!css.includes('touch-action:none')) throw new Error('app stylesheet does not isolate board gestures');

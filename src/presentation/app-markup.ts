@@ -3,6 +3,7 @@ export interface AppMarkupInput {
   readonly stageGoal: string;
   readonly stageOptionsMarkup: string;
   readonly cellPickerMarkup: string;
+  readonly cellInspectionPickerMarkup: string;
   readonly labUrl: string;
 }
 
@@ -184,6 +185,11 @@ export function buildAppMarkup(input: AppMarkupInput): string {
         <p id="cell-inspection-forecast"></p>
         <p id="cell-inspection-risk"></p>
       </section>
+      <details class="cell-inspection-picker" id="cell-inspection-picker">
+        <summary>セルを確認（施工位置を変えない）</summary>
+        <p class="cell-inspection-picker-help" id="cell-inspection-picker-help">盤面を直接押せないときも、セルの現在値と危険理由を確認できます。</p>
+        <div class="cell-inspection-picker-grid" id="cell-inspection-picker-grid" aria-label="確認するセル">${input.cellInspectionPickerMarkup}</div>
+      </details>
       <section class="preview-summary" id="preview-summary" aria-label="施工プレビュー" aria-live="polite" aria-atomic="true" hidden>
         <p id="preview-construction"></p>
         <p id="preview-rain"></p>

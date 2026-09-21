@@ -237,3 +237,11 @@ M4は「コードがある」だけで完了とはせず、自動検査、初見
 - `npm run check` は46ファイル／244テスト、ドメインbuild・smoke、画面build・smokeを含めて合格。iPhone 17 Pro、縦横画面、文字拡大、VoiceOver、初見3名、Sol・Highの独立レビューは未確認で、M4完了とは扱わない。
 
 詳細な確認手順は `docs/PR7_MOBILE_TERMINAL_INSPECTION.md` に記録した。
+
+## 2026-09-21 PR8 VoiceOver向けセル確認と終端Undoフォーカス
+
+- PR7マージ後のmain `cb09b354fb78f50f5c3a83a00c24a8ea0cfd1713` を基点に、64セルすべてを表示専用で確認できるセル確認ピッカーを追加した。選択しても施工位置、手数、操作ログ、保存値は変更しない。
+- モバイル終端シートでは、既存Undoが利用可能なら「1手戻す」へ先にフォーカスし、使用済み／対象手なしの場合は「もう一度」へフォールバックする。
+- `npm run check` は47ファイル／248テスト、ドメインbuild・smoke、画面build・smokeを含めて合格。iPhone 17 Pro Safari、VoiceOver、初見プレイ3名、Sol・Highの独立レビューは未確認で、M4完了とは扱わない。
+
+詳細な確認手順は `docs/PR8_ACCESSIBLE_MOBILE_ACCEPTANCE.md` に記録する。
