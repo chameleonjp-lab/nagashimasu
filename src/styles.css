@@ -1284,6 +1284,40 @@ button:disabled {
   font-weight: 700;
 }
 
+.skip-preview {
+  display: grid;
+  gap: 2px;
+  border: 1px solid rgba(255, 214, 122, 0.3);
+  border-radius: 10px;
+  padding: 7px 9px;
+  background: rgba(70, 55, 24, 0.28);
+}
+
+.skip-preview[hidden] {
+  display: none;
+}
+
+.skip-preview h2,
+.skip-preview p {
+  margin: 0;
+}
+
+.skip-preview h2 {
+  color: #ffe4a3;
+  font-size: 0.8rem;
+}
+
+.skip-preview p {
+  color: #e9edf0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.skip-preview p:nth-of-type(2),
+.skip-preview p:nth-of-type(3) {
+  color: #ffe4a3;
+}
+
 .turn-outcome {
   display: grid;
   gap: 3px;
@@ -1691,6 +1725,7 @@ button:disabled {
   .game-controls.is-terminal .construction-help,
   .game-controls.is-terminal .candidate-row,
   .game-controls.is-terminal .preview-summary,
+  .game-controls.is-terminal .skip-preview,
   .game-controls.is-terminal .secondary-info {
     display: none;
   }

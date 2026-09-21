@@ -160,6 +160,12 @@ export interface StageTurnPreview {
   readonly flowSteps: readonly FlowStepResult[];
   /** The authoritative board after this entire turn has finished. */
   readonly boardAfterTurn: BoardSnapshot;
+  /** The authoritative metrics after this entire turn has finished. */
+  readonly metricsAfterTurn: StageMetrics;
+  /** The authoritative score after this entire turn has finished. */
+  readonly scoreAfterTurn: StageScore;
+  /** The authoritative objective progress after this entire turn has finished. */
+  readonly objectiveProgress: { readonly value: number; readonly target: number };
   readonly objectiveMet: boolean;
   readonly failureReasons: readonly StageFailureReason[];
   readonly phase: StagePhase;
@@ -959,6 +965,13 @@ export function previewStageTurn(
     throw new Error('stage preview is missing its production flow steps');
   }
 
+  const projectedGameplay = reduction.state.gameplay;
+  const objectiveProgress = getStageObjectiveProgress(
+    definition,
+    projectedGameplay.board,
+    projectedGameplay.metrics
+  );
+
   return Object.freeze({
     valid: true,
     action,
@@ -971,10 +984,13 @@ export function previewStageTurn(
     nextFlow,
     boardAfterNextFlow: firstFlowBoard.snapshot(),
     flowSteps,
-    boardAfterTurn: reduction.state.gameplay.board,
-    objectiveMet: reduction.state.gameplay.objectiveMet,
-    failureReasons: reduction.state.gameplay.failureReasons,
-    phase: reduction.state.gameplay.phase
+    boardAfterTurn: projectedGameplay.board,
+    metricsAfterTurn: projectedGameplay.metrics,
+    scoreAfterTurn: projectedGameplay.score,
+    objectiveProgress,
+    objectiveMet: projectedGameplay.objectiveMet,
+    failureReasons: projectedGameplay.failureReasons,
+    phase: projectedGameplay.phase
   });
 }
 

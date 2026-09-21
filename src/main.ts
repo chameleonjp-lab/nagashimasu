@@ -53,7 +53,10 @@ import type {
   ConstructionVisual
 } from './presentation/board-view-contract';
 import { buildStageProjection, riskLabel } from './presentation/stage-projection';
-import { buildStagePreviewSummary } from './presentation/stage-preview';
+import {
+  buildStagePreviewSummary,
+  buildStageSkipPreviewSummary
+} from './presentation/stage-preview';
 import { buildCellInspection } from './presentation/cell-inspection';
 import { firstActionGuideText } from './presentation/first-action-guide';
 import {
@@ -232,6 +235,11 @@ const previewConstructionElement = required<HTMLElement>('#preview-construction'
 const previewRainElement = required<HTMLElement>('#preview-rain');
 const previewFlowElement = required<HTMLElement>('#preview-flow');
 const previewResultElement = required<HTMLElement>('#preview-result');
+const skipPreviewElement = required<HTMLElement>('#skip-preview');
+const skipPreviewCurrentElement = required<HTMLElement>('#skip-preview-current');
+const skipPreviewForecastElement = required<HTMLElement>('#skip-preview-forecast');
+const skipPreviewResultElement = required<HTMLElement>('#skip-preview-result');
+const skipPreviewScoreElement = required<HTMLElement>('#skip-preview-score');
 const turnOutcomeElement = required<HTMLElement>('#turn-outcome');
 const turnOutcomeConstructionElement = required<HTMLElement>('#turn-outcome-construction');
 const turnOutcomeRainElement = required<HTMLElement>('#turn-outcome-rain');
@@ -323,6 +331,15 @@ interface PendingClearSave {
 const pendingClearSaves = new Map<string, PendingClearSave>();
 let sessionId = 0;
 let playbackId = 0;
+
+interface ResultHintContext {
+  /** Legal anchors from the candidate selected before the terminal action. */
+  readonly legalConstructionRange: readonly number[];
+}
+
+let lastResultHintContext: ResultHintContext = Object.freeze({
+  legalConstructionRange: Object.freeze([])
+});
 
 interface RankingRow {
   readonly display_name?: unknown;
@@ -912,6 +929,7 @@ function handleTimeout(): void {
   const turnPreview = controller.previewTimeout();
   const execution = controller.timeout();
   if (execution.accepted) {
+    lastResultHintContext = resultHintContextForView(beforeView);
     lastMessage = '時間切れのため、施工を見送って水を進めます。';
     startPlayback(
       execution,
@@ -980,6 +998,9 @@ function invalidatePlayback(): void {
 function beginNewSession(): void {
   sessionId += 1;
   invalidatePlayback();
+  lastResultHintContext = Object.freeze({
+    legalConstructionRange: Object.freeze([])
+  });
 }
 
 function resumeSavedGame(): void {
@@ -1109,6 +1130,12 @@ function turnPlaybackVisualForView(
     afterRainBoard: preview?.boardAfterRain ?? null,
     beforeMetrics: view.snapshot.metrics,
     beforeForecasts: view.forecasts
+  });
+}
+
+function resultHintContextForView(view: StageControllerView): ResultHintContext {
+  return Object.freeze({
+    legalConstructionRange: Object.freeze([...view.legalAnchorIndices])
   });
 }
 
@@ -1396,6 +1423,9 @@ function render(): void {
     playbackFrame === null ? view.preview : null
   );
   const previewSummary = buildStagePreviewSummary(view.snapshot, view.preview);
+  const skipPreviewSummary = view.snapshot.phase === 'awaiting-turn'
+    ? buildStageSkipPreviewSummary(currentStage, view.snapshot, controller.previewSkip())
+    : null;
   const storageCells = currentStage.storageMask.flatMap((value, index) => value === 1 ? [index] : []);
   const resultHighlightCells = playback === null && view.snapshot.phase === 'failed'
     ? view.snapshot.board.terrain.flatMap((_, index) =>
@@ -1522,6 +1552,12 @@ function render(): void {
   previewFlowElement.textContent = previewSummary?.flow ?? '';
   previewResultElement.textContent = previewSummary?.result ?? '';
 
+  skipPreviewElement.hidden = skipPreviewSummary === null;
+  skipPreviewCurrentElement.textContent = skipPreviewSummary?.current ?? '';
+  skipPreviewForecastElement.textContent = skipPreviewSummary?.forecast ?? '';
+  skipPreviewResultElement.textContent = skipPreviewSummary?.result ?? '';
+  skipPreviewScoreElement.textContent = skipPreviewSummary?.score ?? '';
+
   constructionHelpElement.textContent = view.legalAnchorIndices.length > 0
     ? isMobileViewport()
       ? view.pending === null
@@ -1570,7 +1606,9 @@ function render(): void {
       phase: view.snapshot.phase,
       failureReasons: view.snapshot.failureReasons,
       metrics: view.snapshot.metrics,
-      score: view.snapshot.score
+      score: view.snapshot.score,
+      objective: currentStage.objective,
+      legalConstructionRange: lastResultHintContext.legalConstructionRange
     } as const;
     resultTitle.textContent = view.snapshot.phase === 'cleared' ? 'クリア' : '失敗';
     resultSummary.textContent = view.snapshot.phase === 'cleared'
@@ -1719,6 +1757,7 @@ confirmButton.addEventListener('click', () => {
   if (execution === null) {
     lastMessage = '先に盤面へ候補を仮置きしてください。';
   } else if (execution.accepted) {
+    lastResultHintContext = resultHintContextForView(beforeView);
     lastMessage = '施工を確定しました。雨と水流を計算しました。';
     startPlayback(
       execution,
@@ -1739,6 +1778,7 @@ skipButton.addEventListener('click', () => {
   const execution = controller.skip();
   lastMessage = execution.accepted ? '施工を見送りました。' : rejectionReasonText(execution.reason);
   if (execution.accepted) {
+    lastResultHintContext = resultHintContextForView(beforeView);
     startPlayback(
       execution,
       '施工なし（見送り）',

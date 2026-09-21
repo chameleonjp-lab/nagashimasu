@@ -211,3 +211,11 @@ M4は「コードがある」だけで完了とはせず、自動検査、初見
 - `npm run check` は46ファイル／236テスト、ドメインbuild・smoke、画面build・smokeを含めて合格。iPhone 17 Pro、縦横画面、文字拡大、VoiceOver、初見3名、Sol Highの独立レビューは未確認で、M4完了とは扱わない。
 
 詳細な確認手順は `docs/PR4_FAILURE_UNDO_CELL_INSPECTION.md` に記録した。
+
+## 2026-09-21 PR5 次に試せる助言と見送り前の予測
+
+- PR4マージ後のmain `8bdb1964e82cdeaee19e1242c0b4cc0b6433cd12` を基点に、結果の助言へステージ目標と終端手前の施工可能範囲を渡した。保護セルそのものを上げる曖昧な指示や、池ステージで安全排水だけを勧める案内を避け、施工可能な範囲から候補を選んでプレビューで比較する文章へ揃えた。
+- `StageTurnPreview`が手番後のmetrics・score・目的進捗を保持し、既存`previewSkip`から「現在」「見送り後の予測」「成否」「予測スコア」を操作シートへ表示する。表示中はセッションのhashを変更しない。
+- `npm run check` は46ファイル／241テスト、ドメインbuild・smoke、画面build・smokeを含めて合格。iPhone 17 Pro、縦横画面、文字拡大、VoiceOver、初見3名、Sol・Highの独立レビューは未確認で、M4完了とは扱わない。
+
+詳細な確認手順は `docs/PR5_ADVICE_SKIP_FORECAST.md` に記録した。

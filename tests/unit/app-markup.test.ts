@@ -19,6 +19,8 @@ describe('app markup', () => {
     expect(markup).toContain('id="result-panel"');
     expect(markup).toContain('id="cell-inspection"');
     expect(markup).toContain('id="result-undo-help"');
+    expect(markup).toContain('id="skip-preview"');
+    expect(markup).toContain('見送り前の予測');
   });
 
   it('keeps injected stage and accessibility content in the shell', () => {
