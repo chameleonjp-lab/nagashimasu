@@ -1423,7 +1423,10 @@ function render(): void {
     playbackFrame === null ? view.preview : null
   );
   const previewSummary = buildStagePreviewSummary(view.snapshot, view.preview);
-  const skipPreviewSummary = view.snapshot.phase === 'awaiting-turn'
+  const skipPreviewSummary = view.snapshot.phase === 'awaiting-turn' &&
+    playback === null &&
+    playbackFrame === null &&
+    !paused
     ? buildStageSkipPreviewSummary(currentStage, view.snapshot, controller.previewSkip())
     : null;
   const storageCells = currentStage.storageMask.flatMap((value, index) => value === 1 ? [index] : []);
