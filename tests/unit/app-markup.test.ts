@@ -17,6 +17,8 @@ describe('app markup', () => {
     expect(markup).toContain('id="board"');
     expect(markup).toContain('id="game-controls"');
     expect(markup).toContain('id="result-panel"');
+    expect(markup).toContain('id="cell-inspection"');
+    expect(markup).toContain('id="result-undo-help"');
   });
 
   it('keeps injected stage and accessibility content in the shell', () => {

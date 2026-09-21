@@ -54,6 +54,7 @@ import type {
 } from './presentation/board-view-contract';
 import { buildStageProjection, riskLabel } from './presentation/stage-projection';
 import { buildStagePreviewSummary } from './presentation/stage-preview';
+import { buildCellInspection } from './presentation/cell-inspection';
 import { firstActionGuideText } from './presentation/first-action-guide';
 import {
   failureReasonText,
@@ -244,6 +245,11 @@ const candidateButtons = [
   required<HTMLButtonElement>('#candidate-a'),
   required<HTMLButtonElement>('#candidate-b')
 ] as const;
+const cellInspectionElement = required<HTMLElement>('#cell-inspection');
+const cellInspectionTitleElement = required<HTMLElement>('#cell-inspection-title-text');
+const cellInspectionCurrentElement = required<HTMLElement>('#cell-inspection-current');
+const cellInspectionForecastElement = required<HTMLElement>('#cell-inspection-forecast');
+const cellInspectionRiskElement = required<HTMLElement>('#cell-inspection-risk');
 const rotateButton = required<HTMLButtonElement>('#rotate');
 const cancelButton = required<HTMLButtonElement>('#cancel');
 const confirmButton = required<HTMLButtonElement>('#confirm');
@@ -258,6 +264,7 @@ const resultScore = required<HTMLElement>('#result-score');
 const resultScoreGuide = required<HTMLElement>('#result-score-guide');
 const resultReasons = required<HTMLElement>('#result-reasons');
 const resultHint = required<HTMLElement>('#result-hint');
+const resultUndoHelp = required<HTMLElement>('#result-undo-help');
 const resultPlayer = required<HTMLElement>('#result-player');
 const resultShareText = required<HTMLTextAreaElement>('#result-share-text');
 const resultShareButton = required<HTMLButtonElement>('#result-share');
@@ -1491,6 +1498,20 @@ function render(): void {
     riskElement.textContent = `${cellLabel(selectedRisk.index)} 危険度: ${riskLabel(selectedRisk.level)} — ${reasons}`;
   }
 
+  const cellInspection = view.pending === null
+    ? null
+    : buildCellInspection({
+      index: view.pending.anchorIndex,
+      board: view.snapshot.board,
+      preview: view.preview,
+      risk: selectedRisk
+    });
+  cellInspectionElement.hidden = cellInspection === null;
+  cellInspectionTitleElement.textContent = cellInspection?.title ?? '';
+  cellInspectionCurrentElement.textContent = cellInspection?.current ?? '';
+  cellInspectionForecastElement.textContent = cellInspection?.forecast ?? '';
+  cellInspectionRiskElement.textContent = cellInspection?.risk ?? '';
+
   previewSummaryElement.hidden = previewSummary === null;
   previewConstructionElement.textContent = previewSummary === null
     ? ''
@@ -1564,6 +1585,13 @@ function render(): void {
       ? '危険を抑え、安全な流れを作れました。'
       : view.snapshot.failureReasons.map(failureReasonText).join('／');
     resultHint.textContent = resultImprovementHint(resultInput);
+    const failed = view.snapshot.phase === 'failed';
+    resultUndoHelp.hidden = !failed;
+    resultUndoHelp.textContent = !failed
+      ? ''
+      : view.snapshot.undoUsed
+        ? 'このステージの「1手戻す」は使用済みです。'
+        : '失敗した直前の手を1回だけ戻せます。下の「1手戻す」で、失敗前の盤面から考え直せます。';
     if (!resultPlatformLoaded) {
       resultPlatformLoaded = true;
       resultPlatformRequestId += 1;
@@ -1579,6 +1607,8 @@ function render(): void {
       resultPlatformLoaded = false;
       resultPlatformRequestId += 1;
     }
+    resultUndoHelp.hidden = true;
+    resultUndoHelp.textContent = '';
   }
   retryButton.disabled = locked;
   stageMenuButton.disabled = playback !== null;
